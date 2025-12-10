@@ -37,10 +37,13 @@ dependencies:
   cupertino_icons: ^1.0.2
   
   # BLE bluetooth package
-  flutter_reactive_ble: ^4.0.0
+  flutter_reactive_ble: ^5.0.0
   
   # Permission handling
-  permission_handler: ^10.0.0
+  permission_handler: ^11.0.0
+  
+  # Camera package
+  camera: ^0.10.5+2
 
 dev_dependencies:
   flutter_test:

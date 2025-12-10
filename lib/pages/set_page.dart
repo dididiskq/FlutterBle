@@ -1,4 +1,10 @@
 import 'package:flutter/material.dart';
+import 'balance_params_page.dart';
+import 'current_params_page.dart';
+import 'quick_settings_page.dart';
+import 'system_params_page.dart';
+import 'temperature_params_page.dart';
+import 'voltage_params_page.dart';
 
 // 侧边栏菜单项数据
 class MenuItem {
@@ -35,6 +41,16 @@ class SetPage extends StatelessWidget {
         icon: Icons.flash_on,
         page: CurrentParamsPage(),
       ),
+      MenuItem(
+        title: '均衡参数',
+        icon: Icons.balance,
+        page: BalanceParamsPage(),
+      ),
+      MenuItem(
+        title: '系统参数',
+        icon: Icons.system_update,
+        page: SystemParamsPage(),
+      ),
     ];
   }
 
@@ -61,8 +77,7 @@ class SetPage extends StatelessWidget {
 
   // 构建信息表头
   Widget _buildInfoHeader(String text) {
-    return SizedBox(
-      width: 80,
+    return Expanded(
       child: Text(
         text,
         style: TextStyle(color: Colors.white70, fontSize: 12),
@@ -73,8 +88,7 @@ class SetPage extends StatelessWidget {
 
   // 构建信息值
   Widget _buildInfoValue(String value) {
-    return SizedBox(
-      width: 80,
+    return Expanded(
       child: Text(
         value,
         style: const TextStyle(
@@ -314,7 +328,6 @@ class SetPage extends StatelessWidget {
                     children: [
                       // 电池信息表头
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           _buildInfoHeader('总电压'),
                           _buildInfoHeader('总电流'),
@@ -325,7 +338,6 @@ class SetPage extends StatelessWidget {
                       const SizedBox(height: 8),
                       // 电池信息数据行1
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           _buildInfoValue('1'),
                           _buildInfoValue('1'),
@@ -336,23 +348,21 @@ class SetPage extends StatelessWidget {
                       const SizedBox(height: 12),
                       // 电池信息表头行2
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           _buildInfoHeader('最低电压'),
                           _buildInfoHeader('循环次数'),
                           _buildInfoHeader('功率'),
-                          const SizedBox(width: 80), // 占位
+                          Expanded(child: SizedBox()), // 占位
                         ],
                       ),
                       const SizedBox(height: 8),
                       // 电池信息数据行2
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           _buildInfoValue('1'),
                           _buildInfoValue('1'),
                           _buildInfoValue('1'),
-                          const SizedBox(width: 80), // 占位
+                          Expanded(child: SizedBox()), // 占位
                         ],
                       ),
                     ],
@@ -382,7 +392,6 @@ class SetPage extends StatelessWidget {
                     children: [
                       // 温度信息表头
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           _buildInfoHeader('MOS温度'),
                           _buildInfoHeader('T1温度'),
@@ -393,7 +402,6 @@ class SetPage extends StatelessWidget {
                       const SizedBox(height: 8),
                       // 温度信息数据
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           _buildInfoValue('1'),
                           _buildInfoValue('1'),
@@ -423,18 +431,27 @@ class SetPage extends StatelessWidget {
                     border: Border.all(color: Colors.blue[600]!, width: 1),
                   ),
                   padding: const EdgeInsets.all(12.0),
-                  child: GridView.builder(
-                    shrinkWrap: true,
-                    physics: NeverScrollableScrollPhysics(),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 4, // 每行4个
-                      crossAxisSpacing: 8.0,
-                      mainAxisSpacing: 8.0,
-                      childAspectRatio: 1.0, // 宽高比1:1
-                    ),
-                    itemCount: 16, // 模拟16个单体电压
-                    itemBuilder: (context, index) {
-                      return _buildCellVoltageItem(index + 1, '3.27V');
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      // 根据屏幕宽度动态调整列数
+                      int crossAxisCount = constraints.maxWidth > 600 ? 4 : 3;
+                      // 计算每个网格项的大小
+                      double itemSize = (constraints.maxWidth - (crossAxisCount - 1) * 8.0 - 24.0) / crossAxisCount;
+                       
+                      return GridView.builder(
+                        shrinkWrap: true,
+                        physics: NeverScrollableScrollPhysics(),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: crossAxisCount, // 动态列数
+                          crossAxisSpacing: 8.0,
+                          mainAxisSpacing: 8.0,
+                          childAspectRatio: 1.0, // 宽高比1:1
+                        ),
+                        itemCount: 16, // 模拟16个单体电压
+                        itemBuilder: (context, index) {
+                          return _buildCellVoltageItem(index + 1, '3.27V');
+                        },
+                      );
                     },
                   ),
                 ),
@@ -447,226 +464,4 @@ class SetPage extends StatelessWidget {
   }
 }
 
-// 快速设置页面
-class QuickSettingsPage extends StatelessWidget {
-  const QuickSettingsPage({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('快速设置'),
-        backgroundColor: Colors.blue,
-      ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Colors.blue.shade50, Colors.white],
-          ),
-        ),
-        child: Center(
-          child: Padding(
-            padding: EdgeInsets.all(20.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.settings,
-                  size: 60,
-                  color: Colors.blue,
-                ),
-                SizedBox(height: 20),
-                Text(
-                  '快速设置',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue,
-                  ),
-                ),
-                SizedBox(height: 10),
-                Text(
-                  '这里可以设置常用参数',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// 电压参数页面
-class VoltageParamsPage extends StatelessWidget {
-  const VoltageParamsPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('电压参数'),
-        backgroundColor: Colors.blue,
-      ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Colors.blue.shade50, Colors.white],
-          ),
-        ),
-        child: Center(
-          child: Padding(
-            padding: EdgeInsets.all(20.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.bolt,
-                  size: 60,
-                  color: Colors.blue,
-                ),
-                SizedBox(height: 20),
-                Text(
-                  '电压参数',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue,
-                  ),
-                ),
-                SizedBox(height: 10),
-                Text(
-                  '这里可以查看和设置电压相关参数',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// 温度参数页面
-class TemperatureParamsPage extends StatelessWidget {
-  const TemperatureParamsPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('温度参数'),
-        backgroundColor: Colors.blue,
-      ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Colors.blue.shade50, Colors.white],
-          ),
-        ),
-        child: Center(
-          child: Padding(
-            padding: EdgeInsets.all(20.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.thermostat,
-                  size: 60,
-                  color: Colors.blue,
-                ),
-                SizedBox(height: 20),
-                Text(
-                  '温度参数',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue,
-                  ),
-                ),
-                SizedBox(height: 10),
-                Text(
-                  '这里可以查看和设置温度相关参数',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// 电流参数页面
-class CurrentParamsPage extends StatelessWidget {
-  const CurrentParamsPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('电流参数'),
-        backgroundColor: Colors.blue,
-      ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Colors.blue.shade50, Colors.white],
-          ),
-        ),
-        child: Center(
-          child: Padding(
-            padding: EdgeInsets.all(20.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.flash_on,
-                  size: 60,
-                  color: Colors.blue,
-                ),
-                SizedBox(height: 20),
-                Text(
-                  '电流参数',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue,
-                  ),
-                ),
-                SizedBox(height: 10),
-                Text(
-                  '这里可以查看和设置电流相关参数',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

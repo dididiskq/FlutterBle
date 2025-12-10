@@ -30,9 +30,17 @@ class BleController {
 
   /// 请求蓝牙和位置权限
   Future<bool> requestPermissions() async {
-    // 请求蓝牙权限
-    final bluetoothStatus = await Permission.bluetooth.request();
-    if (!bluetoothStatus.isGranted) {
+    // 检查Android版本并请求相应的蓝牙权限
+    if (await Permission.bluetoothScan.request().isDenied) {
+      return false;
+    }
+    
+    if (await Permission.bluetoothConnect.request().isDenied) {
+      return false;
+    }
+    
+    // 传统蓝牙权限（针对旧版Android）
+    if (await Permission.bluetooth.request().isDenied) {
       return false;
     }
     
@@ -49,7 +57,7 @@ class BleController {
   Stream<DiscoveredDevice> startScan() {
     return _ble.scanForDevices(
       withServices: [], // 扫描所有设备
-      scanMode: ScanMode.lowLatency,
+      scanMode: ScanMode.balanced, // 使用平衡模式，减少功耗问题
     );
   }
 
@@ -62,17 +70,21 @@ class BleController {
   /// 连接蓝牙设备
   Future<void> connectToDevice(String deviceId) async {
     try {
-      await _ble.connectToDevice(
+      // 在flutter_reactive_ble 5.0.0中，connectToDevice返回连接状态流
+      final connectionStream = _ble.connectToDevice(
         id: deviceId,
         connectionTimeout: Duration(seconds: 10),
       );
       
-      // 发送连接状态更新
-      _connectionStateController.add(ConnectionStateUpdate(
-        deviceId: deviceId,
-        connectionState: DeviceConnectionState.connected,
-        failure: null,
-      ));
+      // 监听连接状态变化
+      connectionStream.listen((connectionState) {
+        _connectionStateController.add(connectionState);
+        if (connectionState.connectionState == DeviceConnectionState.connected) {
+          // 连接成功
+        } else if (connectionState.connectionState == DeviceConnectionState.disconnected) {
+          _connectedDevice = null;
+        }
+      });
     } catch (e) {
       print('连接失败: $e');
       rethrow;
@@ -82,13 +94,16 @@ class BleController {
   /// 断开蓝牙设备连接
   Future<void> disconnectFromDevice(String deviceId) async {
     try {
+      // 在flutter_reactive_ble 5.4.0中，没有disconnectFromDevice方法
+      // 连接会在订阅取消时自动断开
+      // 我们只需要更新本地状态
+      _connectedDevice = null;
       // 发送断开连接状态更新
       _connectionStateController.add(ConnectionStateUpdate(
         deviceId: deviceId,
         connectionState: DeviceConnectionState.disconnected,
         failure: null,
       ));
-      _connectedDevice = null;
     } catch (e) {
       print('断开连接失败: $e');
       rethrow;

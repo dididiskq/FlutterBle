@@ -83,28 +83,41 @@ class _DeviceListPageState extends State<DeviceListPage> {
     });
 
     // 开始扫描
-    _scanSubscription = _bleController.startScan().listen((device) {
-      setState(() {
-        // 避免重复添加设备
-        final existingIndex = _devices.indexWhere((d) => d.id == device.id);
-        if (existingIndex != -1) {
-          // 更新已存在设备的信息
-          _devices[existingIndex] = BleDevice.fromDiscoveredDevice(device);
-        } else {
-          // 添加新设备
-          _devices.add(BleDevice.fromDiscoveredDevice(device));
-        }
-      });
-    }, onError: (error) {
+    try {
+      _scanSubscription = _bleController.startScan().listen((device) {
+        setState(() {
+          // 避免重复添加设备
+          final existingIndex = _devices.indexWhere((d) => d.id == device.id);
+          if (existingIndex != -1) {
+            // 更新已存在设备的信息
+            _devices[existingIndex] = BleDevice.fromDiscoveredDevice(device);
+          } else {
+            // 添加新设备
+            _devices.add(BleDevice.fromDiscoveredDevice(device));
+          }
+        });
+      }, onError: (error) {
         setState(() {
           _isScanning = false;
         });
+        print('扫描错误详情: $error, 类型: ${error.runtimeType}');
         WidgetsBinding.instance.addPostFrameCallback((_) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('扫描失败: $error')),
           );
         });
       });
+    } catch (e) {
+      setState(() {
+        _isScanning = false;
+      });
+      print('扫描初始化错误: $e, 类型: ${e.runtimeType}');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('扫描初始化失败: $e')),
+        );
+      });
+    }
 
     // 扫描10秒后自动停止
     Future.delayed(const Duration(seconds: 10), () {
