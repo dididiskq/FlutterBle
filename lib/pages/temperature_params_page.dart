@@ -1,58 +1,57 @@
 import 'package:flutter/material.dart';
+import '../components/common_app_bar.dart';
 
 // 温度参数页面
-class TemperatureParamsPage extends StatelessWidget {
+class TemperatureParamsPage extends StatefulWidget {
   const TemperatureParamsPage({super.key});
+
+  @override
+  State<TemperatureParamsPage> createState() => _TemperatureParamsPageState();
+}
+
+class _TemperatureParamsPageState extends State<TemperatureParamsPage> {
+  // 控制器
+  late TextEditingController _chargeHighTempProtectController;
+  late TextEditingController _chargeHighTempRecoverController;
+  late TextEditingController _chargeLowTempProtectController;
+  late TextEditingController _chargeLowTempRecoverController;
+  late TextEditingController _dischargeHighTempProtectController;
+  late TextEditingController _dischargeHighTempRecoverController;
+  late TextEditingController _dischargeLowTempProtectController;
+  late TextEditingController _dischargeLowTempRecoverController;
+
+  @override
+  void initState() {
+    super.initState();
+    // 初始化控制器
+    _chargeHighTempProtectController = TextEditingController(text: '0');
+    _chargeHighTempRecoverController = TextEditingController(text: '0');
+    _chargeLowTempProtectController = TextEditingController(text: '0');
+    _chargeLowTempRecoverController = TextEditingController(text: '0');
+    _dischargeHighTempProtectController = TextEditingController(text: '0');
+    _dischargeHighTempRecoverController = TextEditingController(text: '0');
+    _dischargeLowTempProtectController = TextEditingController(text: '0');
+    _dischargeLowTempRecoverController = TextEditingController(text: '0');
+  }
+
+  @override
+  void dispose() {
+    // 释放控制器
+    _chargeHighTempProtectController.dispose();
+    _chargeHighTempRecoverController.dispose();
+    _chargeLowTempProtectController.dispose();
+    _chargeLowTempRecoverController.dispose();
+    _dischargeHighTempProtectController.dispose();
+    _dischargeHighTempRecoverController.dispose();
+    _dischargeLowTempProtectController.dispose();
+    _dischargeLowTempRecoverController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(60.0),
-        child: Container(
-          color: const Color(0xFF0A1128),
-          padding: const EdgeInsets.fromLTRB(10.0, 44.0, 10.0, 10.0),
-          alignment: Alignment.bottomCenter,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // 返回按钮
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Colors.red, width: 2),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(5.0),
-                  ),
-                ),
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                child: const Text('返回'),
-              ),
-              // 页面标题
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 8.0),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.red, width: 2),
-                  borderRadius: BorderRadius.circular(5.0),
-                ),
-                child: const Text(
-                  '温度参数',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18.0,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              // 占位符，保持按钮居中
-              const SizedBox(width: 60),
-            ],
-          ),
-        ),
-      ),
+      appBar: CommonAppBar(title: '温度参数'),
       body: Container(
         color: const Color(0xFF0A1128),
         child: Padding(
@@ -104,12 +103,14 @@ class TemperatureParamsPage extends StatelessWidget {
               Expanded(
                 child: ListView(
                   children: [
-                    _buildParamRow('充电高温保护', '0', '°C'),
-                    _buildParamRow('充电高温恢复', '0', '°C'),
-                    _buildParamRow('充电低温保护', '0', '°C'),
-                    _buildParamRow('充电低温恢复', '0', '°C'),
-                    _buildParamRow('放电高温保护', '0', '°C'),
-                    _buildParamRow('放电高温恢复', '0', '°C'),
+                    _buildParamRow('充电高温保护', _chargeHighTempProtectController, '°C'),
+                    _buildParamRow('充电高温恢复', _chargeHighTempRecoverController, '°C'),
+                    _buildParamRow('充电低温保护', _chargeLowTempProtectController, '°C'),
+                    _buildParamRow('充电低温恢复', _chargeLowTempRecoverController, '°C'),
+                    _buildParamRow('放电高温保护', _dischargeHighTempProtectController, '°C'),
+                    _buildParamRow('放电高温恢复', _dischargeHighTempRecoverController, '°C'),
+                    _buildParamRow('放电低温保护', _dischargeLowTempProtectController, '°C'),
+                    _buildParamRow('放电低温恢复', _dischargeLowTempRecoverController, '°C'),
                   ],
                 ),
               ),
@@ -121,14 +122,14 @@ class TemperatureParamsPage extends StatelessWidget {
   }
 
   // 构建参数行
-  Widget _buildParamRow(String name, String value, String unit) {
+  Widget _buildParamRow(String name, TextEditingController controller, String unit) {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 10.0),
       child: Container(
         decoration: BoxDecoration(
           color: const Color(0xFF1A2332),
           borderRadius: BorderRadius.circular(10.0),
-          border: Border.all(color: Colors.blue, width: 1),
+          border: Border.all(color: const Color(0xFF3A475E), width: 1),
         ),
         child: Padding(
           padding: EdgeInsets.all(12.0),
@@ -149,17 +150,23 @@ class TemperatureParamsPage extends StatelessWidget {
                 flex: 2,
                 child: Row(
                   children: [
-                    Container(
+                    SizedBox(
                       width: 80,
                       height: 36,
-                      color: Colors.white,
-                      child: Center(
-                        child: Text(
-                          value,
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.black,
+                      child: TextField(
+                        controller: controller,
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.black,
+                        ),
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(4.0),
+                            borderSide: BorderSide.none,
                           ),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 8.0),
                         ),
                       ),
                     ),

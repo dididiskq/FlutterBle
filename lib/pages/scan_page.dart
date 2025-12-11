@@ -88,13 +88,50 @@ class _ScanPageState extends State<ScanPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('扫一扫'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            Navigator.pop(context);
-          },
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(60.0),
+        child: Container(
+          color: Colors.black, // 设置背景色为黑色，与底部导航栏一致
+          padding: const EdgeInsets.fromLTRB(10.0, 44.0, 10.0, 10.0),
+          alignment: Alignment.bottomCenter,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // 返回按钮
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.black,
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.red, width: 2),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(5.0),
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+                child: const Text('返回'),
+              ),
+              // 页面标题
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 8.0),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.red, width: 2),
+                  borderRadius: BorderRadius.circular(5.0),
+                ),
+                child: const Text(
+                  '扫一扫',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18.0,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              // 占位符，保持按钮居中
+              const SizedBox(width: 60),
+            ],
+          ),
         ),
       ),
       body: _isPermissionGranted

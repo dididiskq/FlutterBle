@@ -112,7 +112,7 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(60.0),
         child: Container(
-          color: Colors.blue.withOpacity(0.9), // 设置背景色带透明度
+          color: Colors.black, // 设置背景色为黑色，与底部导航栏一致
           padding: const EdgeInsets.fromLTRB(10.0, 44.0, 10.0, 10.0), // 调整padding避开状态栏
           alignment: Alignment.bottomCenter, // 垂直对齐到底部
           child: Row(
@@ -121,7 +121,7 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
               // 设备列表按钮
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
+                  backgroundColor: Colors.black,
                   foregroundColor: Colors.white,
                   side: const BorderSide(color: Colors.red, width: 2),
                   shape: RoundedRectangleBorder(
@@ -155,7 +155,7 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
               // 扫一扫按钮
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
+                  backgroundColor: Colors.black,
                   foregroundColor: Colors.white,
                   side: const BorderSide(color: Colors.red, width: 2),
                   shape: RoundedRectangleBorder(

@@ -168,83 +168,135 @@ class _DeviceListPageState extends State<DeviceListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('蓝牙设备列表'),
-        actions: [
-          IconButton(
-            icon: _isScanning
-                ? CircularProgressIndicator(color: Colors.white)
-                : Icon(Icons.refresh),
-            onPressed: _isScanning ? null : _startScan,
-            tooltip: _isScanning ? '扫描中...' : '重新扫描',
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // 扫描状态提示
-          if (_isScanning)
-            Container(
-              padding: EdgeInsets.all(12),
-              color: Colors.blue[50],
-              child: Row(
-                children: [
-                  CircularProgressIndicator(strokeWidth: 2),
-                  SizedBox(width: 12),
-                  Text('正在扫描蓝牙设备...'),
-                ],
-              ),
-            ),
-          
-          // 设备列表
-          Expanded(
-            child: _devices.isEmpty
-                ? const Center(
-                    child: Text(
-                      '点击右上角扫描按钮开始扫描',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  )
-                : ListView.builder(
-                    itemCount: _devices.length,
-                    itemBuilder: (context, index) {
-                      final device = _devices[index];
-                      return Card(
-                        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        elevation: 2,
-                        child: ListTile(
-                          leading: Icon(
-                            _getRssiIcon(device.rssi),
-                            color: Colors.blue,
-                          ),
-                          title: Text(
-                            device.name,
-                            style: const TextStyle(fontWeight: FontWeight.w500),
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(device.id),
-                              const SizedBox(height: 4),
-                              Text(
-                                '信号强度: ${device.rssi} dBm',
-                                style: const TextStyle(fontSize: 12, color: Colors.grey),
-                              ),
-                            ],
-                          ),
-                          trailing: ElevatedButton(
-                            onPressed: () => _toggleConnection(device),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: device.isConnected ? Colors.grey : Colors.blue,
-                            ),
-                            child: Text(device.isConnected ? '断开' : '连接'),
-                          ),
-                        ),
-                      );
-                    },
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(60.0),
+        child: Container(
+          color: Colors.black, // 设置背景色为黑色，与底部导航栏一致
+          padding: const EdgeInsets.fromLTRB(10.0, 44.0, 10.0, 10.0),
+          alignment: Alignment.bottomCenter,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // 返回按钮
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.black,
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.red, width: 2),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(5.0),
                   ),
+                ),
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+                child: const Text('返回'),
+              ),
+              // 页面标题
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 8.0),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.red, width: 2),
+                  borderRadius: BorderRadius.circular(5.0),
+                ),
+                child: const Text(
+                  '蓝牙设备列表',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18.0,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              // 扫描按钮
+              IconButton(
+                icon: _isScanning
+                    ? CircularProgressIndicator(color: Colors.white)
+                    : const Icon(Icons.refresh, color: Colors.white),
+                onPressed: _isScanning ? null : _startScan,
+                tooltip: _isScanning ? '扫描中...' : '重新扫描',
+              ),
+            ],
           ),
-        ],
+        ),
+      ),
+      body: Container(
+        color: const Color(0xFF0A1128),
+        child: Column(
+          children: [
+            // 扫描状态提示
+            if (_isScanning)
+              Container(
+                padding: const EdgeInsets.all(12),
+                color: const Color(0xFF1A2332),
+                child: Row(
+                  children: [
+                    CircularProgressIndicator(strokeWidth: 2, color: Colors.blue),
+                    const SizedBox(width: 12),
+                    const Text('正在扫描蓝牙设备...', style: TextStyle(color: Colors.white)),
+                  ],
+                ),
+              ),
+            
+            // 设备列表
+            Expanded(
+              child: _devices.isEmpty
+                  ? const Center(
+                      child: Text(
+                        '点击右上角扫描按钮开始扫描',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: _devices.length,
+                      itemBuilder: (context, index) {
+                        final device = _devices[index];
+                        return Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1A2332),
+                            borderRadius: BorderRadius.circular(10.0),
+                            border: Border.all(color: const Color(0xFF3A475E), width: 1),
+                          ),
+                          child: ListTile(
+                            leading: Icon(
+                              _getRssiIcon(device.rssi),
+                              color: Colors.blue,
+                            ),
+                            title: Text(
+                              device.name,
+                              style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.white),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(device.id, style: const TextStyle(color: Colors.white70)),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '信号强度: ${device.rssi} dBm',
+                                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                ),
+                              ],
+                            ),
+                            trailing: ElevatedButton(
+                              onPressed: () => _toggleConnection(device),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: device.isConnected ? const Color(0xFF3A475E) : Colors.blue,
+                                foregroundColor: Colors.white,
+                                side: const BorderSide(color: Colors.red, width: 2),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(5.0),
+                                ),
+                              ),
+                              child: Text(device.isConnected ? '断开' : '连接'),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }

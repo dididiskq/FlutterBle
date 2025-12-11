@@ -102,9 +102,9 @@ class SetPage extends StatelessWidget {
   Widget _buildCellVoltageItem(int number, String voltage) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.blue[700],
+        color: const Color(0xFF1A2332),
         borderRadius: BorderRadius.circular(8.0),
-        border: Border.all(color: Colors.blue[600]!, width: 1),
+        border: Border.all(color: const Color(0xFF3A475E), width: 1),
       ),
       padding: const EdgeInsets.all(12.0),
       child: Column(
@@ -120,7 +120,9 @@ class SetPage extends StatelessWidget {
           Text(
             voltage,
             style: const TextStyle(
-                color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
           // 图标
@@ -140,7 +142,7 @@ class SetPage extends StatelessWidget {
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(60.0),
         child: Container(
-          color: Colors.blue.withOpacity(0.9), // 设置背景色带透明度
+          color: Colors.black, // 设置背景色为黑色，与底部导航栏一致
           padding: const EdgeInsets.fromLTRB(
               10.0, 44.0, 10.0, 10.0), // 调整padding避开状态栏
           alignment: Alignment.bottomCenter,
@@ -230,7 +232,7 @@ class SetPage extends StatelessWidget {
         ),
       ),
       body: Container(
-        color: Colors.blue[900],
+        color: const Color(0xFF0A1128),
         child: SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.all(16.0),
@@ -240,9 +242,9 @@ class SetPage extends StatelessWidget {
                 // SOC显示区
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.blue[800],
+                    color: const Color(0xFF1A2332),
                     borderRadius: BorderRadius.circular(8.0),
-                    border: Border.all(color: Colors.blue[600]!, width: 1),
+                    border: Border.all(color: const Color(0xFF3A475E), width: 1),
                   ),
                   padding: const EdgeInsets.all(16.0),
                   margin: const EdgeInsets.only(bottom: 16.0),
@@ -280,9 +282,9 @@ class SetPage extends StatelessWidget {
                 // 总容量显示
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.blue[800],
+                    color: const Color(0xFF1A2332),
                     borderRadius: BorderRadius.circular(8.0),
-                    border: Border.all(color: Colors.blue[600]!, width: 1),
+                    border: Border.all(color: const Color(0xFF3A475E), width: 1),
                   ),
                   padding: const EdgeInsets.all(16.0),
                   margin: const EdgeInsets.only(bottom: 16.0),
@@ -318,9 +320,9 @@ class SetPage extends StatelessWidget {
                 // 电池信息表格
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.blue[800],
+                    color: const Color(0xFF1A2332),
                     borderRadius: BorderRadius.circular(8.0),
-                    border: Border.all(color: Colors.blue[600]!, width: 1),
+                    border: Border.all(color: const Color(0xFF3A475E), width: 1),
                   ),
                   padding: const EdgeInsets.all(12.0),
                   margin: const EdgeInsets.only(bottom: 16.0),
@@ -382,9 +384,9 @@ class SetPage extends StatelessWidget {
                 // 温度信息表格
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.blue[800],
+                    color: const Color(0xFF1A2332),
                     borderRadius: BorderRadius.circular(8.0),
-                    border: Border.all(color: Colors.blue[600]!, width: 1),
+                    border: Border.all(color: const Color(0xFF3A475E), width: 1),
                   ),
                   padding: const EdgeInsets.all(12.0),
                   margin: const EdgeInsets.only(bottom: 16.0),
@@ -426,9 +428,9 @@ class SetPage extends StatelessWidget {
                 // 单体电压网格布局
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.blue[800],
+                    color: const Color(0xFF1A2332),
                     borderRadius: BorderRadius.circular(8.0),
-                    border: Border.all(color: Colors.blue[600]!, width: 1),
+                    border: Border.all(color: const Color(0xFF3A475E), width: 1),
                   ),
                   padding: const EdgeInsets.all(12.0),
                   child: LayoutBuilder(
@@ -437,7 +439,7 @@ class SetPage extends StatelessWidget {
                       int crossAxisCount = constraints.maxWidth > 600 ? 4 : 3;
                       // 计算每个网格项的大小
                       double itemSize = (constraints.maxWidth - (crossAxisCount - 1) * 8.0 - 24.0) / crossAxisCount;
-                       
+                        
                       return GridView.builder(
                         shrinkWrap: true,
                         physics: NeverScrollableScrollPhysics(),

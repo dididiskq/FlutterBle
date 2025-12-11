@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'navigator.dart';
+import 'pages/splash_page.dart';
 import 'pages/privacy_policy_page.dart';
 
 void main() {
@@ -31,7 +32,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: const PrivacyPolicyPage(),
+      home: const SplashPage(),
     );
   }
 }

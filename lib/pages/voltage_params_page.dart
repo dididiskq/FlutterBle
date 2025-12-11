@@ -1,58 +1,45 @@
 import 'package:flutter/material.dart';
+import '../components/common_app_bar.dart';
 
 // 电压参数页面
-class VoltageParamsPage extends StatelessWidget {
+class VoltageParamsPage extends StatefulWidget {
   const VoltageParamsPage({super.key});
+
+  @override
+  State<VoltageParamsPage> createState() => _VoltageParamsPageState();
+}
+
+class _VoltageParamsPageState extends State<VoltageParamsPage> {
+  // 控制器
+  late TextEditingController _overchargeProtectController;
+  late TextEditingController _overchargeRecoverController;
+  late TextEditingController _overdischargeProtectController;
+  late TextEditingController _overdischargeRecoverController;
+
+  @override
+  void initState() {
+    super.initState();
+    // 初始化控制器
+    _overchargeProtectController = TextEditingController(text: '0');
+    _overchargeRecoverController = TextEditingController(text: '0');
+    _overdischargeProtectController = TextEditingController(text: '0');
+    _overdischargeRecoverController = TextEditingController(text: '0');
+  }
+
+  @override
+  void dispose() {
+    // 释放控制器
+    _overchargeProtectController.dispose();
+    _overchargeRecoverController.dispose();
+    _overdischargeProtectController.dispose();
+    _overdischargeRecoverController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(60.0),
-        child: Container(
-          color: const Color(0xFF0A1128),
-          padding: const EdgeInsets.fromLTRB(10.0, 44.0, 10.0, 10.0),
-          alignment: Alignment.bottomCenter,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // 返回按钮
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Colors.red, width: 2),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(5.0),
-                  ),
-                ),
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                child: const Text('返回'),
-              ),
-              // 页面标题
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 8.0),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.red, width: 2),
-                  borderRadius: BorderRadius.circular(5.0),
-                ),
-                child: const Text(
-                  '电压参数',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18.0,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              // 占位符，保持按钮居中
-              const SizedBox(width: 60),
-            ],
-          ),
-        ),
-      ),
+      appBar: CommonAppBar(title: '电压参数'),
       body: Container(
         color: const Color(0xFF0A1128),
         child: Padding(
@@ -104,10 +91,10 @@ class VoltageParamsPage extends StatelessWidget {
               Expanded(
                 child: ListView(
                   children: [
-                    _buildParamRow('过充保护电压', '0', 'mV'),
-                    _buildParamRow('过充恢复电压', '0', 'mV'),
-                    _buildParamRow('过放保护电压', '0', 'mV'),
-                    _buildParamRow('过放恢复电压', '0', 'mV'),
+                    _buildParamRow('过充保护电压', _overchargeProtectController, 'mV'),
+                    _buildParamRow('过充恢复电压', _overchargeRecoverController, 'mV'),
+                    _buildParamRow('过放保护电压', _overdischargeProtectController, 'mV'),
+                    _buildParamRow('过放恢复电压', _overdischargeRecoverController, 'mV'),
                   ],
                 ),
               ),
@@ -119,14 +106,14 @@ class VoltageParamsPage extends StatelessWidget {
   }
 
   // 构建参数行
-  Widget _buildParamRow(String name, String value, String unit) {
+  Widget _buildParamRow(String name, TextEditingController controller, String unit) {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 10.0),
       child: Container(
         decoration: BoxDecoration(
           color: const Color(0xFF1A2332),
           borderRadius: BorderRadius.circular(10.0),
-          border: Border.all(color: Colors.blue, width: 1),
+          border: Border.all(color: const Color(0xFF3A475E), width: 1),
         ),
         child: Padding(
           padding: EdgeInsets.all(12.0),
@@ -147,17 +134,23 @@ class VoltageParamsPage extends StatelessWidget {
                 flex: 2,
                 child: Row(
                   children: [
-                    Container(
+                    SizedBox(
                       width: 80,
                       height: 36,
-                      color: Colors.white,
-                      child: Center(
-                        child: Text(
-                          value,
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.black,
+                      child: TextField(
+                        controller: controller,
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.black,
+                        ),
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(4.0),
+                            borderSide: BorderSide.none,
                           ),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 8.0),
                         ),
                       ),
                     ),

@@ -150,7 +150,13 @@ class BleController {
 
   /// 构建写入命令
   Uint8List buildWriteCommand(int commandId, List<int> data) {
-    return _protocol.buildWriteCommand(commandId, Uint8List.fromList(data));
+    // 兼容旧的API调用方式
+    return _protocol.buildCommand(commandId, {'rawData': data});
+  }
+
+  /// 构建发送命令（新API）
+  Uint8List buildCommand(int commandId, Map<String, dynamic> data) {
+    return _protocol.buildCommand(commandId, data);
   }
 
   /// 检查蓝牙状态
