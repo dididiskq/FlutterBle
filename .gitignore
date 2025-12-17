@@ -42,3 +42,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+.trae/documents/plan_20251213_050005.md
+.trae/documents/plan_20251213_050905.md
+.trae/documents/plan_20251213_053041.md
+.trae/documents/plan_20251213_054938.md

@@ -1,7 +1,6 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:qr_code_scanner/qr_code_scanner.dart';
 
 class ScanPage extends StatefulWidget {
   const ScanPage({super.key});
@@ -11,10 +10,10 @@ class ScanPage extends StatefulWidget {
 }
 
 class _ScanPageState extends State<ScanPage> {
-  CameraController? _cameraController;
-  List<CameraDescription>? _cameras;
-  bool _isCameraInitialized = false;
+  final GlobalKey qrKey = GlobalKey(debugLabel: 'QR');
+  QRViewController? _controller;
   bool _isPermissionGranted = false;
+  String? _scanResult;
 
   @override
   void initState() {
@@ -28,7 +27,6 @@ class _ScanPageState extends State<ScanPage> {
       setState(() {
         _isPermissionGranted = true;
       });
-      _initializeCamera();
     } else {
       // 权限被拒绝，显示提示
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -39,49 +37,25 @@ class _ScanPageState extends State<ScanPage> {
     }
   }
 
-  Future<void> _initializeCamera() async {
-    try {
-      // 获取所有可用摄像头
-      _cameras = await availableCameras();
-      
-      // 选择后置摄像头
-      final backCamera = _cameras!.firstWhere(
-        (camera) => camera.lensDirection == CameraLensDirection.back,
-        orElse: () => _cameras!.first,
-      );
-
-      // 初始化摄像头控制器，明确设置适合预览的图像格式
-      _cameraController = CameraController(
-        backCamera,
-        ResolutionPreset.medium,
-        enableAudio: false,
-        
-        imageFormatGroup: Platform.isIOS 
-            ? ImageFormatGroup.bgra8888 
-            : ImageFormatGroup.nv21,
-      );
-
-      // 初始化摄像头
-      await _cameraController!.initialize();
-      
-      // 开始预览
-      await _cameraController!.startImageStream((CameraImage image) {
-        // 打印视频帧数据
-        print('视频帧数据: 宽度=${image.width}, 高度=${image.height}, 平面数=${image.planes.length}');
-        // 这里可以添加后续的解码逻辑
-      });
-
+  void _onQRViewCreated(QRViewController controller) {
+    _controller = controller;
+    print('二维码扫描器已创建');
+    
+    // 启用连续扫描
+    controller.scannedDataStream.listen((scanData) {
+      print('检测到扫描数据');
       setState(() {
-        _isCameraInitialized = true;
+        _scanResult = scanData.code;
+        print('二维码识别结果: $_scanResult');
+        print('扫描数据详情: ${scanData.rawBytes}');
+        print('识别格式: ${scanData.format}');
       });
-    } catch (e) {
-      print('初始化摄像头失败: $e');
-    }
+    });
   }
 
   @override
   void dispose() {
-    _cameraController?.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
@@ -135,17 +109,21 @@ class _ScanPageState extends State<ScanPage> {
         ),
       ),
       body: _isPermissionGranted
-          ? _isCameraInitialized
-              ? Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    // 摄像头预览
-                    CameraPreview(_cameraController!),
-                    // 扫描框
-                    _buildScanFrame(),
-                  ],
-                )
-              : const Center(child: CircularProgressIndicator())
+          ? Stack(
+              fit: StackFit.expand,
+              children: [
+                // 二维码扫描预览 - 确保在最底层显示原始画面
+                Positioned.fill(
+                  child: QRView(
+                    key: qrKey,
+                    onQRViewCreated: _onQRViewCreated,
+                    overlay: null, // 完全移除默认覆盖层
+                  ),
+                ),
+                // 自定义扫描框
+                _buildScanFrame(),
+              ],
+            )
           : const Center(child: Text('需要摄像头权限')),
     );
   }
@@ -157,15 +135,21 @@ class _ScanPageState extends State<ScanPage> {
 
     return Stack(
       children: [
-        // 半透明遮罩
+        // 半透明遮罩（使用CustomPaint实现镂空效果）
         Positioned.fill(
-          child: Container(
-            color: Colors.black.withOpacity(0),
-            child: CustomPaint(
-              painter: _ScanFramePainter(
-                frameSize: scanFrameSize,
-                frameOffset: scanFrameOffset,
-              ),
+          child: CustomPaint(
+            painter: _ScanMaskPainter(
+              frameSize: scanFrameSize,
+              frameOffset: scanFrameOffset,
+            ),
+          ),
+        ),
+        // 扫描框边框和角
+        Positioned.fill(
+          child: CustomPaint(
+            painter: _ScanFramePainter(
+              frameSize: scanFrameSize,
+              frameOffset: scanFrameOffset,
             ),
           ),
         ),
@@ -190,6 +174,77 @@ class _ScanPageState extends State<ScanPage> {
   }
 }
 
+// 绘制半透明遮罩（外部半透明，中间完全透明）
+class _ScanMaskPainter extends CustomPainter {
+  final double frameSize;
+  final double frameOffset;
+
+  _ScanMaskPainter({
+    required this.frameSize,
+    required this.frameOffset,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // 计算扫描框位置
+    final scanRect = Rect.fromLTWH(
+      frameOffset,
+      (size.height - frameSize) / 2,
+      frameSize,
+      frameSize,
+    );
+
+    // 绘制四个角落的半透明遮罩
+    // 左上角
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, scanRect.left, scanRect.top),
+      Paint()..color = Colors.black.withOpacity(0.5),
+    );
+    // 右上角
+    canvas.drawRect(
+      Rect.fromLTWH(scanRect.right, 0, size.width - scanRect.right, scanRect.top),
+      Paint()..color = Colors.black.withOpacity(0.5),
+    );
+    // 左下角
+    canvas.drawRect(
+      Rect.fromLTWH(0, scanRect.bottom, scanRect.left, size.height - scanRect.bottom),
+      Paint()..color = Colors.black.withOpacity(0.5),
+    );
+    // 右下角
+    canvas.drawRect(
+      Rect.fromLTWH(scanRect.right, scanRect.bottom, size.width - scanRect.right, size.height - scanRect.bottom),
+      Paint()..color = Colors.black.withOpacity(0.5),
+    );
+    // 左边
+    canvas.drawRect(
+      Rect.fromLTWH(0, scanRect.top, scanRect.left, scanRect.height),
+      Paint()..color = Colors.black.withOpacity(0.5),
+    );
+    // 右边
+    canvas.drawRect(
+      Rect.fromLTWH(scanRect.right, scanRect.top, size.width - scanRect.right, scanRect.height),
+      Paint()..color = Colors.black.withOpacity(0.5),
+    );
+    // 上边
+    canvas.drawRect(
+      Rect.fromLTWH(scanRect.left, 0, scanRect.width, scanRect.top),
+      Paint()..color = Colors.black.withOpacity(0.5),
+    );
+    // 下边
+    canvas.drawRect(
+      Rect.fromLTWH(scanRect.left, scanRect.bottom, scanRect.width, size.height - scanRect.bottom),
+      Paint()..color = Colors.black.withOpacity(0.5),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ScanMaskPainter oldDelegate) {
+    return oldDelegate.frameSize != frameSize ||
+        oldDelegate.frameOffset != frameOffset;
+  }
+}
+
+// 绘制扫描框边框和角
 class _ScanFramePainter extends CustomPainter {
   final double frameSize;
   final double frameOffset;
@@ -201,19 +256,6 @@ class _ScanFramePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // 绘制路径
-    final path = Path()
-      ..fillType = PathFillType.evenOdd
-      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height)) // 外部大矩形
-      ..addRect(Rect.fromLTWH(frameOffset, (size.height - frameSize) / 2, frameSize, frameSize)); // 内部扫描框（镂空）
-
-    // 使用黑色半透明颜色填充外部区域
-    final paint = Paint()
-      ..color = Colors.black.withOpacity(0.5);
-
-    // 绘制路径
-    canvas.drawPath(path, paint);
-
     // 绘制扫描框边框
     final borderPaint = Paint()
       ..color = Colors.white

@@ -43,6 +43,23 @@ class _DeviceListPageState extends State<DeviceListPage> {
         }
       });
     });
+
+    // 监听连接结果
+    _bleController.connectionResultStream.listen((result) {
+      final connectionResult = result.result;
+      final message = result.message;
+      if (connectionResult != ConnectionResult.success && message != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(message),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        });
+      }
+    });
   }
 
   @override
@@ -134,8 +151,15 @@ class _DeviceListPageState extends State<DeviceListPage> {
   }
 
   /// 连接或断开设备
-  Future<void> _toggleConnection(BleDevice device) async {
+  Future<void> _toggleConnection(int deviceIndex) async {
     try {
+      setState(() {
+        // 更新列表中实际的设备对象，确保UI能正确显示状态
+        _devices[deviceIndex].isConnecting = true;
+      });
+      
+      final device = _devices[deviceIndex];
+      
       if (device.isConnected) {
         // 断开连接
         await _bleController.disconnectFromDevice(device.id);
@@ -148,6 +172,11 @@ class _DeviceListPageState extends State<DeviceListPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('操作失败: $error')),
         );
+      });
+    } finally {
+      setState(() {
+        // 无论成功失败，都结束连接中状态
+        _devices[deviceIndex].isConnecting = false;
       });
     }
   }
@@ -279,17 +308,30 @@ class _DeviceListPageState extends State<DeviceListPage> {
                               ],
                             ),
                             trailing: ElevatedButton(
-                              onPressed: () => _toggleConnection(device),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: device.isConnected ? const Color(0xFF3A475E) : Colors.blue,
-                                foregroundColor: Colors.white,
-                                side: const BorderSide(color: Colors.red, width: 2),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(5.0),
-                                ),
-                              ),
-                              child: Text(device.isConnected ? '断开' : '连接'),
-                            ),
+              onPressed: device.isConnecting ? null : () => _toggleConnection(index),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: device.isConnected 
+                    ? const Color(0xFF3A475E) 
+                    : device.isConnecting 
+                        ? Colors.grey 
+                        : Colors.blue,
+                foregroundColor: Colors.white,
+                side: const BorderSide(color: Colors.red, width: 2),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(5.0),
+                ),
+              ),
+              child: device.isConnecting 
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Text(device.isConnected ? '断开' : '连接'),
+            ),
                           ),
                         );
                       },

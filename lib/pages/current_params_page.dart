@@ -154,33 +154,35 @@ class _CurrentParamsPageState extends State<CurrentParamsPage> {
                 flex: 2,
                 child: Row(
                   children: [
-                    SizedBox(
-                      width: 80,
-                      height: 36,
-                      child: TextField(
-                        controller: controller,
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.black,
-                        ),
-                        decoration: InputDecoration(
-                          filled: true,
-                          fillColor: Colors.white,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(4.0),
-                            borderSide: BorderSide.none,
+                    Flexible(
+                      child: SizedBox(
+                        height: 36,
+                        child: TextField(
+                          controller: controller,
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.black,
                           ),
-                          contentPadding: EdgeInsets.symmetric(horizontal: 8.0),
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(4.0),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 8.0),
+                          ),
                         ),
                       ),
                     ),
-                    SizedBox(width: 10),
+                    SizedBox(width: 8),
                     Text(
                       unit,
                       style: TextStyle(
                         fontSize: 16,
                         color: Colors.white,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -198,12 +200,13 @@ class _CurrentParamsPageState extends State<CurrentParamsPage> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(5.0),
                     ),
-                    padding: EdgeInsets.symmetric(vertical: 8.0),
+                    padding: EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+                    minimumSize: Size(60, 36),
                   ),
                   child: Text(
                     '设置',
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 14,
                       color: Colors.white,
                     ),
                   ),

@@ -112,22 +112,98 @@ class BmsProtocol {
 
   /// 解析接收到的数据
   Map<String, dynamic> parse(Uint8List data) {
-    // 验证协议格式
-    if (!validateProtocol(data)) {
-      throw FormatException('Invalid protocol format');
+    Map<String, dynamic> result = {};
+    
+    // 最小帧长度校验
+    if (data.length < 5) {
+      result['error'] = 1;
+      return result;
     }
 
-    // 提取命令ID和数据部分
-    final int cmdId = data[2];
-    final int dataLen = data[3];
-    final Uint8List payload = data.sublist(4, 4 + dataLen);
-
-    // 调用对应的命令处理函数
-    if (_commands.containsKey(cmdId)) {
-      return _commands[cmdId]!(payload, dataLen);
-    } else {
-      throw FormatException('Unknown command ID: $cmdId');
+    // CRC校验
+    Uint8List dataPart = data.sublist(0, data.length - 2);
+    int receivedCrc = (data[data.length - 2] & 0xFF) | 
+                      ((data[data.length - 1] & 0xFF) << 8);
+    if (calculateCRC(dataPart) != receivedCrc) {
+      result['error'] = 1;
+      return result;
     }
+
+    // 基础字段解析
+    int address = data[0] & 0xFF;
+    int writeOrread = data[1] & 0xFF;
+    int funcCodeH = data[2] & 0xFF;
+    int funcCodeL = data[3] & 0xFF;
+    int funcCode = (funcCodeH << 8) | funcCodeL;
+    int dataLen = data[4] & 0xFF;
+    
+    // 调用命令处理函数
+    result = procCommand(dataLen, funcCode, dataPart);
+    result['address'] = address;
+    result['funcCode'] = funcCode;
+    result['writeOrread'] = writeOrread;
+    return result;
+  }
+
+  /// 处理命令
+  Map<String, dynamic> procCommand(int dataLen, int cmd, Uint8List data) {
+    if (_commands.containsKey(cmd)) {
+      // 调用绑定的命令处理函数
+      return _commands[cmd]!(data.sublist(5, 5 + dataLen), dataLen);
+    }
+    if (cmd >= 0x0020 && cmd <= 0x003F) {
+      return paseCellVs(cmd, data);
+    }
+    if (cmd >= 0x418) {
+      return paseUint32And2(data, dataLen);
+    }
+    return {'error': 2};
+  }
+
+  /// 解析单体电压数据
+  Map<String, dynamic> paseCellVs(int cmd, Uint8List data) {
+    Map<String, dynamic> result = {};
+    List<double> cellVoltages = [];
+    
+    // 从第5个字节开始解析数据（跳过地址、读写标志、功能码、数据长度）
+    int startIndex = 5;
+    int dataLen = data[4];
+    
+    // 每个单体电压占2个字节
+    for (int i = startIndex; i < startIndex + dataLen; i += 2) {
+      if (i + 1 < data.length) {
+        int value = (data[i] & 0xFF) | ((data[i + 1] & 0xFF) << 8);
+        cellVoltages.add(value / 1000.0); // 转换为V单位
+      }
+    }
+    
+    result['command'] = cmd;
+    result['cellVoltages'] = cellVoltages;
+    return result;
+  }
+
+  /// 解析32位无符号整数和其他数据
+  Map<String, dynamic> paseUint32And2(Uint8List data, int dataLen) {
+    Map<String, dynamic> result = {};
+    List<int> uint32Values = [];
+    
+    // 从第5个字节开始解析数据
+    int startIndex = 5;
+    
+    // 解析32位无符号整数（每个占4个字节）
+    for (int i = startIndex; i < startIndex + dataLen; i += 4) {
+      if (i + 3 < data.length) {
+        int value = (data[i] & 0xFF) |
+                   ((data[i + 1] & 0xFF) << 8) |
+                   ((data[i + 2] & 0xFF) << 16) |
+                   ((data[i + 3] & 0xFF) << 24);
+        uint32Values.add(value);
+      }
+    }
+    
+    result['command'] = data[2] | (data[3] << 8);
+    result['uint32Values'] = uint32Values;
+    return result;
   }
 
   /// 构建发送命令
