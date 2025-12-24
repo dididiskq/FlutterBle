@@ -118,23 +118,28 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // 设备列表按钮
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black,
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Colors.red, width: 2),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(5.0),
+              // 左侧设备列表按钮
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black,
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.red, width: 2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(5.0),
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context, 
+                        MaterialPageRoute(builder: (context) => const DeviceListPage()),
+                      );
+                    },
+                    child: const Text('设备列表'),
                   ),
                 ),
-                onPressed: () {
-                  Navigator.push(
-                    context, 
-                    MaterialPageRoute(builder: (context) => const DeviceListPage()),
-                  );
-                },
-                child: const Text('设备列表'),
               ),
               // ultra bms标签
               Container(
@@ -152,23 +157,28 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
                   ),
                 ),
               ),
-              // 扫一扫按钮
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black,
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Colors.red, width: 2),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(5.0),
+              // 右侧扫一扫按钮
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black,
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.red, width: 2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(5.0),
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context, 
+                        MaterialPageRoute(builder: (context) => const ScanPage()),
+                      );
+                    },
+                    child: const Text('扫一扫'),
                   ),
                 ),
-                onPressed: () {
-                  Navigator.push(
-                    context, 
-                    MaterialPageRoute(builder: (context) => const ScanPage()),
-                  );
-                },
-                child: const Text('扫一扫'),
               ),
             ],
           ),

@@ -150,12 +150,15 @@ class SetPage extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               // 左侧侧边栏按钮
-              Builder(
-                builder: (context) => IconButton(
-                  icon: const Icon(Icons.menu, color: Colors.white),
-                  onPressed: () {
-                    Scaffold.of(context).openDrawer();
-                  },
+              SizedBox(
+                width: 80.0,
+                child: Builder(
+                  builder: (context) => IconButton(
+                    icon: const Icon(Icons.menu, color: Colors.white),
+                    onPressed: () {
+                      Scaffold.of(context).openDrawer();
+                    },
+                  ),
                 ),
               ),
               // ultra bms标签
