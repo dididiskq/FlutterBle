@@ -1,9 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
-// 导入file_picker包，用于实现文件选择功能
-// 注意：需要先运行 flutter pub get 安装依赖
-import 'package:file_picker/file_picker.dart';
+import 'package:http/http.dart' as http;
 import '../bluetooth/ble_controller.dart';
 import '../bluetooth/ota_upgrader.dart';
 import '../components/common_app_bar.dart';
@@ -24,11 +24,21 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
   int _upgradeProgress = 0;
   String _upgradeMessage = '就绪';
   
+  // 服务器地址
+  static const String BASE_URL = "http://10.105.116.227:8000";
+  
   // 固件信息
   String _firmwareVersion = 'V1.0.0';
   String _softwareVersion = 'V2.1.5';
   String? _selectedFirmwareFile;
   int? _selectedFirmwareSize; // 存储固件文件大小(字节)
+  
+  // 服务器固件信息
+  bool _hasUpdate = false;
+  String _latestVersion = '';
+  String _firmwareDescription = '';
+  String? _downloadUrl;
+  String? _firmwareFilename;
   
   // 订阅流
   StreamSubscription? _upgradeStatusSubscription;
@@ -59,56 +69,181 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
     });
   }
   
-  // 选择固件文件
-  Future<void> _selectFirmwareFile() async {
+  // 检查更新
+  Future<void> _checkForUpdates() async {
     try {
-      // 打开文件选择器，只允许选择二进制文件
-      // 注意：需要先运行 flutter pub get 安装file_picker依赖
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['bin', 'hex'],
-        allowMultiple: false,
-      );
+      setState(() {
+        _upgradeStatus = UpgradeStatus.checkingUpdate;
+        _upgradeMessage = '正在检查更新...';
+      });
       
-      if (result != null && result.files.isNotEmpty) {
-        final file = result.files.first;
+      // 发送HTTP GET请求获取最新固件信息
+      final response = await http.get(Uri.parse('$BASE_URL/ota/latest'));
+      
+      if (response.statusCode == 200) {
+        // 解析JSON响应
+        final data = await _parseJsonResponse(response.body);
         
-        // 获取文件路径和大小
-        final filePath = file.path;
-        final fileSize = file.size;
+        // 提取数据并进行空值检查
+        final latestVersion = data['version'] as String? ?? '';
+        final description = data['description'] as String? ?? '';
+        final downloadUrl = data['download_url'] as String?;
+        final filename = data['filename'] as String?;
         
-        if (filePath != null) {
-          // 调用OTA升级器的selectFirmwareFile方法
-          await _otaUpgrader.selectFirmwareFile(
-            filePath: filePath,
-            fileSize: fileSize,
-          );
-          
+        setState(() {
+          _latestVersion = latestVersion;
+          _firmwareDescription = description;
+          _downloadUrl = downloadUrl;
+          _firmwareFilename = filename;
+        });
+        
+        // 比较版本
+        if (latestVersion.isNotEmpty && _isNewVersion(latestVersion)) {
           setState(() {
-            _selectedFirmwareFile = file.name; // 更新UI显示所选文件名
-            _selectedFirmwareSize = fileSize; // 存储文件大小
+            _hasUpdate = true;
+            _upgradeStatus = UpgradeStatus.idle;
+            _upgradeMessage = '发现新版本固件';
           });
           
-          // 显示文件选择成功的提示
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('固件文件已选择')),
+              SnackBar(content: Text('发现新版本: $latestVersion')),
+            );
+          }
+        } else {
+          setState(() {
+            _hasUpdate = false;
+            _upgradeStatus = UpgradeStatus.idle;
+            _upgradeMessage = '当前已是最新版本';
+          });
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('当前已是最新版本')),
             );
           }
         }
       } else {
-        // 用户取消了文件选择
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('文件选择已取消')),
-          );
-        }
+        throw Exception('服务器返回错误: ${response.statusCode}');
       }
     } catch (e) {
-      // 处理文件选择失败的情况
+      setState(() {
+        _upgradeStatus = UpgradeStatus.idle;
+        _upgradeMessage = '检查更新失败';
+      });
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('选择固件文件失败: $e')),
+          SnackBar(content: Text('检查更新失败: $e')),
+        );
+      }
+    }
+  }
+  
+  // 解析JSON响应
+  Future<Map<String, dynamic>> _parseJsonResponse(String body) async {
+    return Future.microtask(() {
+      try {
+        final Map<String, dynamic> data = json.decode(body);
+        return data;
+      } catch (e) {
+        // 如果JSON解析失败，返回一个空的map
+        return {};
+      }
+    });
+  }
+  
+  // 比较版本号，判断是否为新版本
+  bool _isNewVersion(String latestVersion) {
+    try {
+      // 简单的版本比较逻辑，实际应用中应该使用更复杂的版本比较算法
+      // 移除版本号前缀（如 V1.0.0 -> 1.0.0）
+      String cleanCurrentVersion = _firmwareVersion;
+      if (cleanCurrentVersion.startsWith('V') || cleanCurrentVersion.startsWith('v')) {
+        cleanCurrentVersion = cleanCurrentVersion.substring(1);
+      }
+      
+      final currentParts = cleanCurrentVersion.split('.').map((part) => int.tryParse(part) ?? 0).toList();
+      final latestParts = latestVersion.split('.').map((part) => int.tryParse(part) ?? 0).toList();
+      
+      for (var i = 0; i < currentParts.length; i++) {
+        if (i >= latestParts.length) return false;
+        if (latestParts[i] > currentParts[i]) return true;
+        if (latestParts[i] < currentParts[i]) return false;
+      }
+      
+      return latestParts.length > currentParts.length;
+    } catch (e) {
+      // 如果版本比较失败，默认为不是新版本
+      return false;
+    }
+  }
+  
+  // 下载固件
+  Future<void> _downloadFirmware() async {
+    if (_downloadUrl == null || _firmwareFilename == null) {
+      return;
+    }
+    
+    try {
+      setState(() {
+        _upgradeStatus = UpgradeStatus.downloading;
+        _upgradeProgress = 0;
+        _upgradeMessage = '正在下载固件...';
+      });
+      
+      // 构建完整的下载URL
+      final downloadUrl = Uri.parse('$BASE_URL$_downloadUrl');
+      
+      // 发送HTTP GET请求下载固件文件
+      final response = await http.get(downloadUrl, headers: {
+        'Accept': '*/*',
+      });
+      
+      if (response.statusCode == 200) {
+        // 获取应用文档目录
+        final directory = Directory.systemTemp;
+        final filePath = '${directory.path}/$_firmwareFilename';
+        
+        // 将下载的内容写入文件
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes);
+        
+        // 获取文件大小
+        final fileSize = response.bodyBytes.length;
+        
+        // 调用OTA升级器的selectFirmwareFile方法
+        await _otaUpgrader.selectFirmwareFile(
+          filePath: filePath,
+          fileSize: fileSize,
+        );
+        
+        setState(() {
+          _selectedFirmwareFile = _firmwareFilename;
+          _selectedFirmwareSize = fileSize;
+          _upgradeStatus = UpgradeStatus.idle;
+          _upgradeProgress = 100;
+          _upgradeMessage = '固件下载完成';
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('固件下载完成')),
+          );
+        }
+      } else {
+        throw Exception('下载失败: ${response.statusCode}');
+      }
+    } catch (e) {
+      setState(() {
+        _upgradeStatus = UpgradeStatus.idle;
+        _upgradeProgress = 0;
+        _upgradeMessage = '固件下载失败';
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('固件下载失败: $e')),
         );
       }
     }
@@ -149,8 +284,13 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
               _buildVersionCard('软件版本', _softwareVersion),
               const SizedBox(height: 30.0),
               
-              // 选择固件文件
-              _buildSelectFirmwareButton(),
+              // 检查更新按钮
+              _buildCheckUpdateButton(),
+              
+              const SizedBox(height: 20.0),
+              
+              // 固件更新信息
+              _buildFirmwareUpdateInfo(),
               
               if (_selectedFirmwareFile != null) ...[
                 const SizedBox(height: 20.0),
@@ -197,12 +337,12 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
     );
   }
 
-  // 构建选择固件按钮
-  Widget _buildSelectFirmwareButton() {
+  // 构建检查更新按钮
+  Widget _buildCheckUpdateButton() {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: _upgradeStatus == UpgradeStatus.idle ? _selectFirmwareFile : null,
+        onPressed: _upgradeStatus == UpgradeStatus.idle ? _checkForUpdates : null,
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF1A2332),
           padding: const EdgeInsets.symmetric(vertical: 16.0),
@@ -214,7 +354,74 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
           ),
           elevation: 0,
         ),
-        child: const Text('选择固件文件'),
+        child: const Text('检查更新'),
+      ),
+    );
+  }
+  
+  // 构建下载固件按钮
+  Widget _buildDownloadFirmwareButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: _upgradeStatus == UpgradeStatus.idle && _hasUpdate ? _downloadFirmware : null,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.blue,
+          padding: const EdgeInsets.symmetric(vertical: 16.0),
+          textStyle: const TextStyle(fontSize: 18.0, color: Colors.white),
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10.0),
+            side: const BorderSide(color: Colors.blue, width: 1),
+          ),
+          elevation: 0,
+        ),
+        child: const Text('下载固件'),
+      ),
+    );
+  }
+  
+  // 构建固件更新信息卡片
+  Widget _buildFirmwareUpdateInfo() {
+    if (!_hasUpdate) {
+      return Container();
+    }
+    
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A2332),
+        borderRadius: BorderRadius.circular(10.0),
+        border: Border.all(color: const Color(0xFF3A475E), width: 1),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('固件更新信息:', style: TextStyle(color: Colors.white, fontSize: 16.0, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12.0),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('当前版本:', style: TextStyle(color: Colors.white, fontSize: 14.0)),
+              Text(_firmwareVersion, style: const TextStyle(color: Colors.grey, fontSize: 14.0)),
+            ],
+          ),
+          const SizedBox(height: 8.0),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('最新版本:', style: TextStyle(color: Colors.white, fontSize: 14.0)),
+              Text(_latestVersion, style: const TextStyle(color: Colors.green, fontSize: 14.0, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 12.0),
+          const Text('固件描述:', style: TextStyle(color: Colors.white, fontSize: 14.0)),
+          const SizedBox(height: 8.0),
+          Text(_firmwareDescription, style: const TextStyle(color: Colors.grey, fontSize: 14.0)),
+          const SizedBox(height: 16.0),
+          _buildDownloadFirmwareButton(),
+        ],
       ),
     );
   }

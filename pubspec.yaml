@@ -51,6 +51,10 @@ dependencies:
   # File picker package for selecting firmware files
   # 使用与Dart 2.19.6兼容的版本
   file_picker: ^5.3.1
+  
+  # HTTP package for server communication
+  # 使用与Dart 2.19.6兼容的版本
+  http: ^0.13.6
 
 dev_dependencies:
   flutter_test:
