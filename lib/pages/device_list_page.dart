@@ -31,6 +31,10 @@ class _DeviceListPageState extends State<DeviceListPage> {
     
     // 监听连接状态变化
     _bleController.connectionStateStream.listen((connectionState) {
+      print('[DeviceListPage] 连接状态变化: ${connectionState.deviceId} -> ${connectionState.connectionState}');
+      
+      if (!mounted) return;
+      
       setState(() {
         final deviceId = connectionState.deviceId;
         final deviceIndex = _devices.indexWhere(
@@ -38,8 +42,10 @@ class _DeviceListPageState extends State<DeviceListPage> {
         );
         
         if (deviceIndex != -1) {
-          _devices[deviceIndex].isConnected = 
-              connectionState.connectionState == DeviceConnectionState.connected;
+          final isConnected = connectionState.connectionState == DeviceConnectionState.connected;
+          print('[DeviceListPage] 更新设备状态: ${_devices[deviceIndex].name} -> $isConnected');
+          _devices[deviceIndex].isConnected = isConnected;
+          _devices[deviceIndex].isConnecting = false;
         }
       });
     });
@@ -57,6 +63,16 @@ class _DeviceListPageState extends State<DeviceListPage> {
               duration: const Duration(seconds: 3),
             ),
           );
+        });
+      }
+    });
+
+    // 监听连接成功设备事件
+    _bleController.connectedDeviceStream.listen((device) {
+      if (device.isConnected) {
+        // 连接成功，返回主页并传递设备名称
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Navigator.pop(context, device.name);
         });
       }
     });
@@ -145,9 +161,11 @@ class _DeviceListPageState extends State<DeviceListPage> {
   /// 停止扫描设备
   void _stopScan() {
     _scanSubscription?.cancel();
-    setState(() {
-      _isScanning = false;
-    });
+    if (mounted) {
+      setState(() {
+        _isScanning = false;
+      });
+    }
   }
 
   /// 连接或断开设备
@@ -164,8 +182,8 @@ class _DeviceListPageState extends State<DeviceListPage> {
         // 断开连接
         await _bleController.disconnectFromDevice(device.id);
       } else {
-        // 连接设备
-        await _bleController.connectToDevice(device.id);
+        // 连接设备，传递设备名称
+        await _bleController.connectToDevice(device.id, deviceName: device.name);
       }
     } catch (error) {
       WidgetsBinding.instance.addPostFrameCallback((_) {

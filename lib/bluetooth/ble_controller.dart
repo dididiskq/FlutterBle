@@ -23,8 +23,19 @@ class ConnectionResultData {
   ConnectionResultData(this.result, this.message);
 }
 
-/// BLE蓝牙控制类
+/// BLE蓝牙控制类（单例模式）
 class BleController {
+  static BleController? _instance;
+  
+  factory BleController() {
+    _instance ??= BleController._internal();
+    return _instance!;
+  }
+  
+  BleController._internal() {
+    print('[BleController] 创建单例实例');
+  }
+  
   final FlutterReactiveBle _ble = FlutterReactiveBle();
   final BmsProtocol _protocol = BmsProtocol();
   
@@ -54,7 +65,10 @@ class BleController {
   
   // 当前连接的设备
   DiscoveredDevice? _connectedDevice;
-  DiscoveredDevice? get connectedDevice => _connectedDevice;
+  DiscoveredDevice? get connectedDevice {
+    print('[BleController] connectedDevice getter被调用: $_connectedDevice');
+    return _connectedDevice;
+  }
   
   // 连接状态流
   final StreamController<ConnectionStateUpdate> _connectionStateController = StreamController.broadcast();
@@ -72,9 +86,16 @@ class BleController {
   // 通知订阅
   StreamSubscription<List<int>>? _notificationSubscription;
   
+  // 连接流订阅（用于断开连接）
+  StreamSubscription<ConnectionStateUpdate>? _connectionSubscription;
+  
   // 连接结果流
   final StreamController<ConnectionResultData> _connectionResultController = StreamController.broadcast();
   Stream<ConnectionResultData> get connectionResultStream => _connectionResultController.stream;
+
+  // 连接成功设备流
+  final StreamController<BleDevice> _connectedDeviceController = StreamController.broadcast();
+  Stream<BleDevice> get connectedDeviceStream => _connectedDeviceController.stream;
 
   /// 请求蓝牙和位置权限
   Future<bool> requestPermissions() async {
@@ -117,16 +138,29 @@ class BleController {
 
   /// 发现指定服务
   Future<DiscoveredService> discoverService(String deviceId, Uuid serviceId) async {
+    print('[BLE] 开始发现服务...');
+    print('[BLE] 目标服务UUID: $serviceId');
+    
     try {
       final services = await _ble.discoverServices(deviceId);
+      print('[BLE] 发现 ${services.length} 个服务');
+      
+      // 打印所有发现的服务
+      for (int i = 0; i < services.length; i++) {
+        print('[BLE]   服务[$i]: ${services[i].serviceId} (包含 ${services[i].characteristics.length} 个特征)');
+      }
+      
       final service = services.firstWhere(
         (service) => service.serviceId == serviceId,
         orElse: () => throw Exception('未找到指定服务: $serviceId'),
       );
+      
+      print('[BLE] ★★★ 找到目标服务: ${service.serviceId}');
+      print('[BLE] 服务包含 ${service.characteristics.length} 个特征');
       _discoveredService = service;
       return service;
     } catch (e) {
-      print('发现服务失败: $e');
+      print('[BLE] ★★★ 发现服务失败: $e');
       rethrow;
     }
   }
@@ -138,11 +172,21 @@ class BleController {
     }
 
     try {
+      // 打印所有特征
+      print('[BLE] 服务中的所有特征:');
+      for (int i = 0; i < _discoveredService!.characteristics.length; i++) {
+        final char = _discoveredService!.characteristics[i];
+        print('[BLE]   特征[$i]: ${char.characteristicId}');
+      }
+      
       // 查找写入特征
       final writeChar = _discoveredService!.characteristics.firstWhere(
         (char) => char.characteristicId == _writeUuid,
         orElse: () => throw Exception('未找到写入特征: $_writeUuid'),
       );
+      
+      print('[BLE] 写入特征: ${writeChar.characteristicId}');
+      
       _writeCharacteristic = QualifiedCharacteristic(
         serviceId: _serviceUuid,
         characteristicId: _writeUuid,
@@ -154,6 +198,9 @@ class BleController {
         (char) => char.characteristicId == _notifyUuid,
         orElse: () => throw Exception('未找到通知特征: $_notifyUuid'),
       );
+      
+      print('[BLE] 通知特征: ${notifyChar.characteristicId}');
+      
       _notifyCharacteristic = QualifiedCharacteristic(
         serviceId: _serviceUuid,
         characteristicId: _notifyUuid,
@@ -187,13 +234,24 @@ class BleController {
   }
 
   /// 连接蓝牙设备
-  Future<void> connectToDevice(String deviceId) async {
+  Future<void> connectToDevice(String deviceId, {String? deviceName}) async {
+    print('[BLE] ==================== 开始连接设备 ====================');
+    print('[BLE] 设备ID: $deviceId');
+    if (deviceName != null) {
+      print('[BLE] 设备名称: $deviceName');
+    }
+    
     try {
       // 重置状态
       _discoveredService = null;
       _writeCharacteristic = null;
       _notifyCharacteristic = null;
       _notificationSubscription?.cancel();
+      _notificationSubscription = null;
+      _connectionSubscription?.cancel();
+      _connectionSubscription = null;
+      
+      print('[BLE] 调用flutter_reactive_ble库connectToDevice方法...');
       
       // 调用flutter_reactive_ble库的connectToDevice方法
       final connectionStream = _ble.connectToDevice(
@@ -201,20 +259,50 @@ class BleController {
         connectionTimeout: Duration(seconds: 10),
       );
       
-      // 监听连接状态变化
-      connectionStream.listen((connectionState) {
+      // 保存连接流订阅，用于后续断开连接
+      _connectionSubscription = connectionStream.listen((connectionState) {
         _connectionStateController.add(connectionState);
         
+        print('[BLE] 连接状态变化: ${connectionState.connectionState}');
+        
         if (connectionState.connectionState == DeviceConnectionState.connected) {
+          print('[BLE] ★★★ 连接成功! 设备ID: ${connectionState.deviceId}');
+          print('[BLE] 开始发现服务...');
+          
           // 连接成功，自动发现服务和特征
           discoverCharacteristics(deviceId)
               .then((_) {
+                print('[BLE] ★★★ 特征发现完成');
+                print('[BLE] 写入特征: $_writeUuid');
+                print('[BLE] 通知特征: $_notifyUuid');
+                
                 // 启用通知
                 return enableNotification();
               })
               .then((_) {
+                print('[BLE] ★★★ 通知订阅成功! 开始监听设备数据...');
+                // 保存连接的设备信息
+                if (deviceName != null) {
+                  _connectedDevice = DiscoveredDevice(
+                    id: deviceId,
+                    name: deviceName,
+                    serviceUuids: [],
+                    serviceData: {},
+                    manufacturerData: Uint8List(0),
+                    rssi: 0,
+                  );
+                  print('[BLE] ★★★ 已保存设备信息: $deviceName');
+                  // 发送连接成功设备事件
+                  _connectedDeviceController.add(BleDevice(
+                    id: deviceId,
+                    name: deviceName,
+                    rssi: 0,
+                    isConnected: true,
+                  ));
+                }
                 // 连接流程完全成功
                 _connectionResultController.add(ConnectionResultData(ConnectionResult.success, null));
+                print('[BLE] ==================== 连接流程全部完成 ====================');
               })
               .catchError((error) {
                 // 处理发现服务和特征或启用通知失败的情况
@@ -230,21 +318,28 @@ class BleController {
                   errorMessage = '未找到指定特征，设备类型不匹配';
                 }
                 
-                print(errorMessage);
+                print('[BLE] ★★★ 连接失败: $errorMessage');
                 _connectionResultController.add(ConnectionResultData(result, errorMessage));
               });
         } else if (connectionState.connectionState == DeviceConnectionState.disconnected) {
           // 断开连接，清理资源
+          print('[BLE] ★★★ 连接断开');
           _connectedDevice = null;
           _discoveredService = null;
           _writeCharacteristic = null;
           _notifyCharacteristic = null;
           _notificationSubscription?.cancel();
           _notificationSubscription = null;
-        } else if (connectionState.failure != null) {
+        } else if (connectionState.connectionState == DeviceConnectionState.connecting) {
+          print('[BLE] 正在连接...');
+        } else if (connectionState.connectionState == DeviceConnectionState.disconnecting) {
+          print('[BLE] 正在断开连接...');
+        }
+        
+        if (connectionState.failure != null) {
           // 连接过程中发生错误
           final error = connectionState.failure;
-          print('连接失败: $error');
+          print('[BLE] ★★★ 连接错误: ${error?.message ?? '未知错误'}');
           _connectionResultController.add(ConnectionResultData(
             ConnectionResult.connectionFailed,
             '连接失败: ${error?.message ?? '未知错误'}'
@@ -252,7 +347,7 @@ class BleController {
         }
       });
     } catch (e) {
-      print('连接初始化失败: $e');
+      print('[BLE] ★★★ 连接初始化失败: $e');
       _connectionResultController.add(ConnectionResultData(
         ConnectionResult.connectionFailed,
         '连接初始化失败: $e'
@@ -264,7 +359,20 @@ class BleController {
   /// 断开蓝牙设备连接
   Future<void> disconnectFromDevice(String deviceId) async {
     try {
-      // 清理资源
+      print('[BLE] ==================== 开始断开设备 ====================');
+      print('[BLE] 设备ID: $deviceId');
+      
+      // 先取消连接流订阅
+      _connectionSubscription?.cancel();
+      _connectionSubscription = null;
+      print('[BLE] ★★★ 已取消连接流订阅');
+      
+      // 调用flutter_reactive_ble库的disconnect方法主动断开连接
+      // flutter_reactive_ble 没有提供直接的 disconnectDevice 方法，取消连接流订阅即可触发底层断开
+      // 已在上面调用 _connectionSubscription?.cancel(); 完成断开，无需额外调用
+      print('[BLE] ★★★ 已调用库的disconnect方法');
+      
+      // 清理通知订阅
       _notificationSubscription?.cancel();
       _notificationSubscription = null;
       
@@ -274,14 +382,24 @@ class BleController {
       _writeCharacteristic = null;
       _notifyCharacteristic = null;
       
+      // 发送断开连接设备事件
+      _connectedDeviceController.add(BleDevice(
+        id: deviceId,
+        name: '已断开',
+        rssi: 0,
+        isConnected: false,
+      ));
+      
       // 发送断开连接状态更新
       _connectionStateController.add(ConnectionStateUpdate(
         deviceId: deviceId,
         connectionState: DeviceConnectionState.disconnected,
         failure: null,
       ));
+      
+      print('[BLE] ==================== 断开连接完成 ====================');
     } catch (e) {
-      print('断开连接失败: $e');
+      print('[BLE] ★★★ 断开连接失败: $e');
       rethrow;
     }
   }
@@ -317,22 +435,32 @@ class BleController {
   }
 
   /// 写入数据到特征值
-  Future<void> writeData(Uint8List value, {bool withResponse = true}) async {
+  Future<void> writeData(Uint8List value, {bool? withResponse}) async {
     if (_writeCharacteristic == null) {
       throw Exception('未找到写入特征，请先连接设备');
     }
     
     try {
-      if (withResponse) {
-        await _ble.writeCharacteristicWithResponse(
-          _writeCharacteristic!,
-          value: value,
-        );
-      } else {
+ 
+      print('[BLE] 尝试使用writeWithoutResponse写入数据...');
+      print('[BLE] 数据: ${value.map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}').join(' ')}');
+      
+      try {
         await _ble.writeCharacteristicWithoutResponse(
           _writeCharacteristic!,
           value: value,
         );
+        print('[BLE] writeWithoutResponse写入成功');
+      } catch (e) {
+        print('[BLE] writeWithoutResponse写入失败: $e');
+        print('[BLE] 尝试使用writeWithResponse...');
+        
+        // 如果writeWithoutResponse失败，尝试使用writeWithResponse
+        await _ble.writeCharacteristicWithResponse(
+          _writeCharacteristic!,
+          value: value,
+        );
+        print('[BLE] writeWithResponse写入成功');
       }
     } catch (e) {
       print('写入数据失败: $e');
@@ -341,7 +469,7 @@ class BleController {
   }
 
   /// 便捷方法：发送命令
-  Future<void> sendCommand(int commandId, Map<String, dynamic> data, {bool withResponse = true}) async {
+  Future<void> sendCommand(int commandId, Map<String, dynamic> data, {bool? withResponse}) async {
     final command = buildCommand(commandId, data);
     await writeData(command, withResponse: withResponse);
   }
@@ -383,7 +511,9 @@ class BleController {
     _connectionStateController.close();
     _notificationStreamController.close();
     _connectionResultController.close();
+    _connectedDeviceController.close();
     _notificationSubscription?.cancel();
+    _connectionSubscription?.cancel();
   }
 }
 

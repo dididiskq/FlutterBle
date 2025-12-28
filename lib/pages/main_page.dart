@@ -1,6 +1,10 @@
+import 'dart:async';
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
+import 'package:ultra_bms/bluetooth/ble_controller.dart';
+import 'package:ultra_bms/managers/battery_data_manager.dart';
+import 'package:ultra_bms/models/battery_data.dart';
 import 'package:ultra_bms/pages/device_list_page.dart';
 import 'package:ultra_bms/pages/scan_page.dart';
 
@@ -12,17 +16,48 @@ class MainPage extends StatefulWidget {
 }
 
 class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin {
+  // BLE控制器（单例）
+  final BleController _bleController = BleController();
+  
+  // 电池数据管理器（单例）
+  final BatteryDataManager _batteryDataManager = BatteryDataManager();
+  
+  // 是否首次加载数据（用于控制动画）
+  bool _isFirstLoad = true;
+  
   // 设备连接状态
   bool isConnected = false;
   String deviceName = "请先连接设备";
   
+  // 更新设备名称和连接状态
+  void _updateDeviceInfo(String name) {
+    setState(() {
+      deviceName = name;
+      isConnected = true;
+    });
+  }
+  
+  // 重置设备信息（断开连接时调用）
+  void _resetDeviceInfo() {
+    setState(() {
+      deviceName = "请先连接设备";
+      isConnected = false;
+    });
+  }
+  
   // 电池数据
-  double socValue = 0.0; // SOC百分比
+  double socValue = 0.0; // SOC百分比（初始值设为50，避免0值导致绘制问题）
   double totalCurrent = 0.0; // 总电流
   double totalVoltage = 0.0; // 总电压
   double totalPower = 0.0; // 总功率
   double totalCapacity = 0.0; // 总容量
   
+  // 充电状态
+  int chargeStatus = 0;
+  //放电状态
+  int dischargeStatus = 0;
+
+
   // 温度数据
   double t1Temp = 0.0;
   double t2Temp = 0.0;
@@ -37,6 +72,9 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
   late AnimationController _socAnimationController;
   late Animation<double> _socAnimation;
   
+  // 防抖定时器
+  Timer? _updateTimer;
+  
   @override
   void initState() {
     super.initState();
@@ -47,49 +85,116 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
       vsync: this,
     );
     
-    // 模拟数据变化
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      simulateDataChange();
+    // 从单例中恢复连接状态和电池数据（在setState之前）
+    _restoreConnectionState();
+    _restoreBatteryData();
+    
+    // 统一触发一次UI更新
+    setState(() {
+      // 状态已经在恢复方法中设置，这里只需要触发更新
     });
+    
+    // 监听设备连接状态变化
+    _bleController.connectedDeviceStream.listen((device) {
+      if (device.isConnected) {
+        _updateDeviceInfo(device.name);
+        // 连接成功后自动启动电池电量读取
+        _batteryDataManager.readAllData();
+        // _batteryDataManager.startBatteryLevelReading();
+      } else {
+        _resetDeviceInfo();
+        // 设备断开连接后停止自动读取
+        _batteryDataManager.stopAutoRead();
+        _batteryDataManager.stopBatteryLevelReading();
+      }
+    });
+    
+    // 监听电池数据更新
+    _batteryDataManager.batteryDataStream.listen((data) {
+      if (mounted) {
+        // 使用防抖定时器，避免频繁更新UI
+        _updateTimer?.cancel();
+        _updateTimer = Timer(const Duration(milliseconds: 100), () {
+          if (mounted) {
+            setState(() {
+              socValue = data.soc.toDouble();
+              totalVoltage = data.voltage;
+              totalCurrent = data.current;
+              totalCapacity = data.capacity;
+              totalPower = data.voltage * data.current;
+              cycleCount = data.cycleCount;
+              // 更新充放电状态
+              chargeStatus = data.chargeStatus;
+              dischargeStatus = data.dischargeStatus;
+              // 更新温度数据
+              t1Temp = data.batteryTemperature1;            
+              t2Temp = data.batteryTemperature2;
+              mosTemp = data.batteryTemperatureMos;
+            
+              
+              // 首次加载完成后标记为非首次
+              _isFirstLoad = false;
+            });
+          }
+        });
+      }
+    });
+    
+    // 监听 BLE 通知数据
+    _bleController.notificationStream.listen((data) {
+      _batteryDataManager.handleResponse(Uint8List.fromList(data));
+      // _batteryDataManager.handleBatteryLevelResponse(Uint8List.fromList(data));
+    });
+  }
+  
+  // 从单例中恢复连接状态
+  void _restoreConnectionState() {
+    final connectedDevice = _bleController.connectedDevice;
+    if (connectedDevice != null) {
+      print('[MainPage] 恢复连接状态: ${connectedDevice.name}');
+      deviceName = connectedDevice.name.isNotEmpty ? connectedDevice.name : '已连接设备';
+      isConnected = true;
+    }
+  }
+  
+  // 从单例中恢复电池数据
+  void _restoreBatteryData() {
+    final currentData = _batteryDataManager.currentData;
+    if (currentData.isNotEmpty) {
+      print('[MainPage] 恢复电池数据: SOC=${currentData.soc}%, SOH=${currentData.soh}%');
+      
+      // 直接更新数据，不使用动画
+      socValue = currentData.soc.toDouble();
+      totalVoltage = currentData.voltage;
+      totalCurrent = currentData.current;
+      totalCapacity = currentData.capacity;
+      totalPower = currentData.voltage * currentData.current;
+      cycleCount = currentData.cycleCount;
+      
+      // 恢复温度数据 - 使用独立的温度字段
+      t1Temp = currentData.batteryTemperature1;
+      t2Temp = currentData.batteryTemperature2;
+      mosTemp = currentData.batteryTemperatureMos;
+      
+      // 标记为非首次加载，避免动画重新开始
+      _isFirstLoad = false;
+      
+      print('[MainPage] 数据恢复完成，_isFirstLoad=$_isFirstLoad');
+    }
   }
   
   @override
   void dispose() {
     _socAnimationController.dispose();
+    _updateTimer?.cancel();
+    // 不要销毁 BatteryDataManager，它是单例，应该在应用退出时才销毁
+    // _batteryDataManager.dispose();
+    // 不要销毁 BleController，它是单例，应该在应用退出时才销毁
+    // _bleController.dispose();
     super.dispose();
   }
   
-  // 模拟数据变化
-  void simulateDataChange() {
-    // 模拟连接设备
-    Future.delayed(const Duration(seconds: 3), () {
-      setState(() {
-        isConnected = true;
-        deviceName = "BMS-12345";
-      });
-    });
-    
-    // 模拟SOC变化
-    Future.delayed(const Duration(seconds: 1), () {
-      _updateSOCValue(10.0);
-    });
-    
-    // 模拟其他数据变化
-    Future.delayed(const Duration(seconds: 2), () {
-      setState(() {
-        totalCurrent = 5.2;
-        totalVoltage = 12.5;
-        totalPower = 65.0;
-        totalCapacity = 100.0;
-        t1Temp = 25.0;
-        t2Temp = 26.0;
-        mosTemp = 30.0;
-        alarmCount = 0;
-        cycleCount = 120;
-        voltageDiff = 0.05;
-      });
-    });
-  }
+
   
   // 更新SOC值并带动画
   void _updateSOCValue(double newValue) {
@@ -131,11 +236,14 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
                         borderRadius: BorderRadius.circular(5.0),
                       ),
                     ),
-                    onPressed: () {
-                      Navigator.push(
+                    onPressed: () async {
+                      final result = await Navigator.push(
                         context, 
                         MaterialPageRoute(builder: (context) => const DeviceListPage()),
                       );
+                      if (result != null && result is String) {
+                        _updateDeviceInfo(result);
+                      }
                     },
                     child: const Text('设备列表'),
                   ),
@@ -209,6 +317,8 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
                   ),
                 ),
               ),
+              
+              // const SizedBox(height: 20.0),
               
               // SOC仪表盘
               SizedBox(
@@ -368,7 +478,7 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
                               ),
                               Icon(
                                 Icons.circle,
-                                color: Colors.red,
+                                color: _batteryDataManager.currentData.chargeMosOn ? Colors.green : Colors.red,
                                 size: 20.0,
                               ),
                             ],
@@ -385,7 +495,7 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
                               ),
                               Icon(
                                 Icons.circle,
-                                color: Colors.red,
+                                color: _batteryDataManager.currentData.dischargeMosOn ? Colors.green : Colors.red,
                                 size: 20.0,
                               ),
                             ],
