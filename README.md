@@ -14,5 +14,6 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
-adb tcpip 2213
+
 adb connect 192.168.3.52:2213
+adb tcpip 2213

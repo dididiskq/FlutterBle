@@ -11,7 +11,10 @@ enum ModbusRequestType {
   readTemperatures2,     // 读取温度2数据
   readTemperaturesMos,     // 读取Mos温度数据
   readCycleCount,     // 读取循环次数
+  readBatteryStringCount,     // 读取电池串数
+  readCellAloneVoltage,     // 读取单个电池电压
   readMainPageData,     // 读取主页数据
+  readQuickSettings,     // 读取快速设置参数
   writeParameters,      // 写入参数
   custom,               // 自定义请求
 }
@@ -197,7 +200,36 @@ class ModbusRequest {
     );
   }
 
+  //新增读取电池串数
+  factory ModbusRequest.readBatteryStringCount({
+    required String id,
+    int slaveId = 1,
+    int startAddress = 0x0018,
+    int quantity = 0x0001,
+  }) {
+    return ModbusRequest(
+      id: id,
+      type: ModbusRequestType.readBatteryStringCount,
+      slaveId: slaveId,
+      startAddress: startAddress,
+      quantity: quantity,
+    );
+  }
 
+  factory ModbusRequest.readCellAloneVoltage({
+    required String id,
+    required int slaveId,
+    required int cellIndex,
+  }) {
+    final startAddress = 0x0020 + cellIndex;
+    return ModbusRequest(
+      id: id,
+      type: ModbusRequestType.readCellAloneVoltage,
+      slaveId: slaveId,
+      startAddress: startAddress,
+      quantity: 0x0001,
+    );
+  }
 
   factory ModbusRequest.readMainPageData({
     required String id,
@@ -209,6 +241,21 @@ class ModbusRequest {
       slaveId: slaveId,
       startAddress: 0x0000,
       quantity: 0x001D,
+    );
+  }
+
+  factory ModbusRequest.readQuickSettings({
+    required String id,
+    int slaveId = 1,
+    required int startAddress,
+    required int quantity,
+  }) {
+    return ModbusRequest(
+      id: id,
+      type: ModbusRequestType.readQuickSettings,
+      slaveId: slaveId,
+      startAddress: startAddress,
+      quantity: quantity,
     );
   }
 
@@ -291,7 +338,11 @@ class ModbusRequest {
       type == ModbusRequestType.readTemperatures1 ||
       type == ModbusRequestType.readTemperatures2 ||
       type == ModbusRequestType.readTemperaturesMos ||
-      type == ModbusRequestType.readCycleCount;
+      type == ModbusRequestType.readCycleCount ||
+      type == ModbusRequestType.readBatteryStringCount ||
+      type == ModbusRequestType.readCellAloneVoltage ||
+      type == ModbusRequestType.readMainPageData ||
+      type == ModbusRequestType.readQuickSettings;
 
 
 

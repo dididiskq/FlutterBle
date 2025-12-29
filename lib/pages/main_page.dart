@@ -130,6 +130,13 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
               t1Temp = data.batteryTemperature1;            
               t2Temp = data.batteryTemperature2;
               mosTemp = data.batteryTemperatureMos;
+              
+              // 计算压差
+              if (data.cellVoltages.isNotEmpty && data.cellVoltages.length >= 2) {
+                final maxVoltage = data.cellVoltages.reduce((a, b) => a > b ? a : b);
+                final minVoltage = data.cellVoltages.reduce((a, b) => a < b ? a : b);
+                voltageDiff = maxVoltage - minVoltage;
+              }
             
               
               // 首次加载完成后标记为非首次
@@ -175,6 +182,13 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
       t1Temp = currentData.batteryTemperature1;
       t2Temp = currentData.batteryTemperature2;
       mosTemp = currentData.batteryTemperatureMos;
+      
+      // 计算压差
+      if (currentData.cellVoltages.isNotEmpty && currentData.cellVoltages.length >= 2) {
+        final maxVoltage = currentData.cellVoltages.reduce((a, b) => a > b ? a : b);
+        final minVoltage = currentData.cellVoltages.reduce((a, b) => a < b ? a : b);
+        voltageDiff = maxVoltage - minVoltage;
+      }
       
       // 标记为非首次加载，避免动画重新开始
       _isFirstLoad = false;
@@ -317,9 +331,7 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
                   ),
                 ),
               ),
-              
-              // const SizedBox(height: 20.0),
-              
+
               // SOC仪表盘
               SizedBox(
                 height: 300.0,
@@ -755,7 +767,7 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
                             textAlign: TextAlign.center,
                           ),
                           Text(
-                            '${voltageDiff.toStringAsFixed(2)}V',
+                            '${voltageDiff.toStringAsFixed(3)}V',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 18.0,

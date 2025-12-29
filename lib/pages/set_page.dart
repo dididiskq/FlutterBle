@@ -5,6 +5,7 @@ import 'quick_settings_page.dart';
 import 'system_params_page.dart';
 import 'temperature_params_page.dart';
 import 'voltage_params_page.dart';
+import '../managers/battery_data_manager.dart';
 
 // 侧边栏菜单项数据
 class MenuItem {
@@ -15,8 +16,88 @@ class MenuItem {
   MenuItem({required this.title, required this.icon, required this.page});
 }
 
-class SetPage extends StatelessWidget {
+class SetPage extends StatefulWidget {
   const SetPage({super.key});
+
+  @override
+  State<SetPage> createState() => _SetPageState();
+}
+
+class _SetPageState extends State<SetPage> {
+  final BatteryDataManager _batteryDataManager = BatteryDataManager();
+  List<double> _cellVoltages = [];
+  int _cellNumber = 0;
+  
+  int _socValue = 0;
+  double _totalVoltage = 0.0;
+  double _totalCurrent = 0.0;
+  double _totalPower = 0.0;
+  double _totalCapacity = 0.0;
+  int _cycleCount = 0;
+  double _mosTemp = 0.0;
+  double _t1Temp = 0.0;
+  double _t2Temp = 0.0;
+  bool _chargeMosOn = false;
+  bool _dischargeMosOn = false;
+  double _voltageDiff = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _initBatteryData();
+    _batteryDataManager.batteryDataStream.listen((data) {
+      if (mounted) {
+        setState(() {
+          _cellVoltages = data.cellVoltages;
+          _cellNumber = data.cellNumber;
+          _socValue = data.soc;
+          _totalVoltage = data.voltage;
+          _totalCurrent = data.current;
+          _totalPower = data.voltage * data.current;
+          _totalCapacity = data.capacity;
+          _cycleCount = data.cycleCount;
+          _mosTemp = data.batteryTemperatureMos;
+          _t1Temp = data.batteryTemperature1;
+          _t2Temp = data.batteryTemperature2;
+          _chargeMosOn = data.chargeMosOn;
+          _dischargeMosOn = data.dischargeMosOn;
+          
+          // 计算压差
+          if (_cellVoltages.isNotEmpty && _cellVoltages.length >= 2) {
+            final maxVoltage = _cellVoltages.reduce((a, b) => a > b ? a : b);
+            final minVoltage = _cellVoltages.reduce((a, b) => a < b ? a : b);
+            _voltageDiff = maxVoltage - minVoltage;
+          }
+        });
+      }
+    });
+  }
+
+  void _initBatteryData() {
+    final currentData = _batteryDataManager.currentData;
+    setState(() {
+      _cellVoltages = currentData.cellVoltages;
+      _cellNumber = currentData.cellNumber;
+      _socValue = currentData.soc;
+      _totalVoltage = currentData.voltage;
+      _totalCurrent = currentData.current;
+      _totalPower = currentData.voltage * currentData.current;
+      _totalCapacity = currentData.capacity;
+      _cycleCount = currentData.cycleCount;
+      _mosTemp = currentData.batteryTemperatureMos;
+      _t1Temp = currentData.batteryTemperature1;
+      _t2Temp = currentData.batteryTemperature2;
+      _chargeMosOn = currentData.chargeMosOn;
+      _dischargeMosOn = currentData.dischargeMosOn;
+      
+      // 计算压差
+      if (_cellVoltages.isNotEmpty && _cellVoltages.length >= 2) {
+        final maxVoltage = _cellVoltages.reduce((a, b) => a > b ? a : b);
+        final minVoltage = _cellVoltages.reduce((a, b) => a < b ? a : b);
+        _voltageDiff = maxVoltage - minVoltage;
+      }
+    });
+  }
 
   // 创建侧边栏菜单
   List<MenuItem> _buildMenuItems(BuildContext context) {
@@ -262,18 +343,18 @@ class SetPage extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            '0%',
-                            style: TextStyle(
+                          Text(
+                            '${_socValue.toStringAsFixed(0)}%',
+                            style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold),
                           ),
                           Row(
                             children: [
-                              _buildStatusIndicator('充电MOS', Colors.red),
+                              _buildStatusIndicator('充电MOS', _chargeMosOn ? Colors.green : Colors.red),
                               const SizedBox(width: 16),
-                              _buildStatusIndicator('放电MOS', Colors.red),
+                              _buildStatusIndicator('放电MOS', _dischargeMosOn ? Colors.green : Colors.red),
                             ],
                           ),
                         ],
@@ -299,9 +380,9 @@ class SetPage extends StatelessWidget {
                         style: TextStyle(color: Colors.white, fontSize: 14),
                       ),
                       const SizedBox(height: 4),
-                      const Text(
-                        '0.00AH',
-                        style: TextStyle(
+                      Text(
+                        '${_totalCapacity.toStringAsFixed(2)}AH',
+                        style: const TextStyle(
                             color: Colors.white,
                             fontSize: 24,
                             fontWeight: FontWeight.bold),
@@ -344,10 +425,10 @@ class SetPage extends StatelessWidget {
                       // 电池信息数据行1
                       Row(
                         children: [
-                          _buildInfoValue('1'),
-                          _buildInfoValue('1'),
-                          _buildInfoValue('1'),
-                          _buildInfoValue('1'),
+                          _buildInfoValue('${_totalVoltage.toStringAsFixed(1)}V'),
+                          _buildInfoValue('${_totalCurrent.toStringAsFixed(1)}A'),
+                          _buildInfoValue('${_voltageDiff.toStringAsFixed(3)}V'),
+                          _buildInfoValue('${_cellVoltages.isNotEmpty ? _cellVoltages.reduce((a, b) => a > b ? a : b).toStringAsFixed(3) : '0.000'}V'),
                         ],
                       ),
                       const SizedBox(height: 12),
@@ -364,9 +445,9 @@ class SetPage extends StatelessWidget {
                       // 电池信息数据行2
                       Row(
                         children: [
-                          _buildInfoValue('1'),
-                          _buildInfoValue('1'),
-                          _buildInfoValue('1'),
+                          _buildInfoValue(_cellVoltages.isNotEmpty ? '${_cellVoltages.reduce((a, b) => a < b ? a : b).toStringAsFixed(3)}V' : '0.000V'),
+                          _buildInfoValue('$_cycleCount'),
+                          _buildInfoValue('${_totalPower.toStringAsFixed(1)}W'),
                           Expanded(child: SizedBox()), // 占位
                         ],
                       ),
@@ -408,10 +489,10 @@ class SetPage extends StatelessWidget {
                       // 温度信息数据
                       Row(
                         children: [
-                          _buildInfoValue('1'),
-                          _buildInfoValue('1'),
-                          _buildInfoValue('1'),
-                          _buildInfoValue('1'),
+                          _buildInfoValue('${_mosTemp.toStringAsFixed(1)}°C'),
+                          _buildInfoValue('${_t1Temp.toStringAsFixed(1)}°C'),
+                          _buildInfoValue('${_t2Temp.toStringAsFixed(1)}°C'),
+                          _buildInfoValue('--'),
                         ],
                       ),
                     ],
@@ -438,6 +519,11 @@ class SetPage extends StatelessWidget {
                   padding: const EdgeInsets.all(12.0),
                   child: LayoutBuilder(
                     builder: (context, constraints) {
+                      final displayCount = _cellNumber > 0 ? _cellNumber : 16;
+                      final displayVoltages = _cellVoltages.isEmpty 
+                          ? List.filled(displayCount, 0.0) 
+                          : _cellVoltages;
+                      
                       // 根据屏幕宽度动态调整列数
                       int crossAxisCount = constraints.maxWidth > 600 ? 4 : 3;
                       // 计算每个网格项的大小
@@ -452,9 +538,15 @@ class SetPage extends StatelessWidget {
                           mainAxisSpacing: 8.0,
                           childAspectRatio: 1.0, // 宽高比1:1
                         ),
-                        itemCount: 16, // 模拟16个单体电压
+                        itemCount: displayCount,
                         itemBuilder: (context, index) {
-                          return _buildCellVoltageItem(index + 1, '3.27V');
+                          final voltage = index < displayVoltages.length 
+                              ? displayVoltages[index] 
+                              : 0.0;
+                          final voltageText = voltage > 0 
+                              ? '${voltage.toStringAsFixed(2)}V' 
+                              : '--';
+                          return _buildCellVoltageItem(index + 1, voltageText);
                         },
                       );
                     },

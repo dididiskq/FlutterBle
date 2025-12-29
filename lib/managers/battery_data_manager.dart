@@ -41,6 +41,8 @@ class BatteryDataManager {
   int _slaveId = 0x16;
   int _cellCount = 16;
   int _temperatureCount = 4;
+  int _currentCellIndex = 0;
+  List<double> _cellVoltages = [];
   Duration _readInterval = const Duration(seconds: 1);
   Duration _batteryLevelReadInterval = const Duration(milliseconds: 500);
   
@@ -167,10 +169,14 @@ class BatteryDataManager {
       // 读取循环次数
       await readCycleCount();                   // 读取循环次数
       await Future.delayed(const Duration(milliseconds: 100));
+
+      //读取电池串数
+      await readBatteryStringCount();                   // 读取电池串数
+      await Future.delayed(const Duration(milliseconds: 100));
       
       //读取单体电压
-      // await readCellVoltages();                   // 读取单体电压
-      // await Future.delayed(const Duration(milliseconds: 100));
+      await readCellAloneVoltages();                   // 读取单体电压
+      await Future.delayed(const Duration(milliseconds: 100));
       
       // await readMainPageData();                   // 读取主页数据
     } catch (e) {
@@ -266,6 +272,39 @@ class BatteryDataManager {
     
     await _sendRequest(request);
   }
+
+  Future<void> readBatteryStringCount() async {
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readBatteryStringCount(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x0018,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+  }
+
+  Future<void> readCellAloneVoltages() async {
+    print('[BatteryDataManager] 开始读取单体电压，电池串数: $_cellCount');
+    
+    _cellVoltages = [];
+    _currentCellIndex = 0;
+    
+    for (int i = 0; i < _cellCount; i++) {
+      final requestId = _generateRequestId();
+      final request = ModbusRequest.readCellAloneVoltage(
+        id: requestId,
+        slaveId: _slaveId,
+        cellIndex: i,
+      );
+      
+      await _sendRequest(request);
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+    
+    print('[BatteryDataManager] 单体电压读取完成');
+  }
   
   Future<bool> writeParameters(int startAddress, List<int> values) async {
     final requestId = _generateRequestId();
@@ -276,10 +315,1242 @@ class BatteryDataManager {
       values: values,
     );
     
-    final result = await _sendRequest(request);
-    return result;
+    final sent = await _sendRequest(request);
+    if (!sent) {
+      return false;
+    }
+    
+    // 等待写入响应
+    final completer = Completer<bool>();
+    StreamSubscription? subscription;
+    
+    subscription = _requestStatusController.stream.listen((statusRequest) {
+      if (statusRequest.id == requestId) {
+        subscription?.cancel();
+        if (statusRequest.status == ModbusRequestStatus.completed) {
+          completer.complete(true);
+        } else if (statusRequest.status == ModbusRequestStatus.failed ||
+                   statusRequest.status == ModbusRequestStatus.timeout) {
+          completer.complete(false);
+        }
+      }
+    });
+    
+    // 设置超时
+    Future.delayed(const Duration(seconds: 5), () {
+      if (!completer.isCompleted) {
+        subscription?.cancel();
+        completer.complete(false);
+      }
+    });
+    
+    return await completer.future;
   }
   
+  Future<bool> writeBatterySeriesCount(int count) async {
+    print('[BatteryDataManager] 写入电池串数: $count');
+    final success = await writeParameters(0x200, [count]);
+    if (success) {
+      print('[BatteryDataManager] 电池串数写入成功');
+    } else {
+      print('[BatteryDataManager] 电池串数写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeBatteryCapacity(int capacity) async {
+    print('[BatteryDataManager] 写入电池物理容量: $capacity mAh');
+    final success = await writeParameters(0x402, _int32ToRegisters(capacity));
+    if (success) {
+      print('[BatteryDataManager] 电池物理容量写入成功');
+    } else {
+      print('[BatteryDataManager] 电池物理容量写入失败');
+    }
+    return success;
+  }
+
+  List<int> _int32ToRegisters(int value) {
+    final byteData = ByteData(4)..setInt32(0, value, Endian.big);
+    return [
+      byteData.getUint16(0, Endian.big),
+      byteData.getUint16(2, Endian.big),
+    ];
+  }
+
+  List<int> _floatToRegisters(double value) {
+    final byteData = ByteData(4)..setFloat32(0, value, Endian.big);
+    return [
+      byteData.getUint16(0, Endian.big),
+      byteData.getUint16(2, Endian.big),
+    ];
+  }
+
+  double _registersToFloat(List<int> bytes) {
+    final byteData = ByteData(4)
+      ..setUint16(0, bytes[0], Endian.big)
+      ..setUint16(2, bytes[1], Endian.big);
+    return byteData.getFloat32(0, Endian.big);
+  }
+
+  Future<bool> writeOverchargeProtectVoltage(int voltage) async {
+    print('[BatteryDataManager] 写入过充保护电压: $voltage mV');
+    final success = await writeParameters(0x210, [voltage]);
+    if (success) {
+      print('[BatteryDataManager] 过充保护电压写入成功');
+    } else {
+      print('[BatteryDataManager] 过充保护电压写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeOverchargeRecoverVoltage(int voltage) async {
+    print('[BatteryDataManager] 写入过充恢复电压: $voltage mV');
+    final success = await writeParameters(0x211, [voltage]);
+    if (success) {
+      print('[BatteryDataManager] 过充恢复电压写入成功');
+    } else {
+      print('[BatteryDataManager] 过充恢复电压写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeOverdischargeProtectVoltage(int voltage) async {
+    print('[BatteryDataManager] 写入过放保护电压: $voltage mV');
+    final success = await writeParameters(0x217, [voltage]);
+    if (success) {
+      print('[BatteryDataManager] 过放保护电压写入成功');
+    } else {
+      print('[BatteryDataManager] 过放保护电压写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeOverdischargeRecoverVoltage(int voltage) async {
+    print('[BatteryDataManager] 写入过放恢复电压: $voltage mV');
+    final success = await writeParameters(0x218, [voltage]);
+    if (success) {
+      print('[BatteryDataManager] 过放恢复电压写入成功');
+    } else {
+      print('[BatteryDataManager] 过放恢复电压写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeChargeHighTempProtect(int temperature) async {
+    print('[BatteryDataManager] 写入充电高温保护: $temperature °C');
+    final success = await writeParameters(0x222, [temperature]);
+    if (success) {
+      print('[BatteryDataManager] 充电高温保护写入成功');
+    } else {
+      print('[BatteryDataManager] 充电高温保护写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeChargeHighTempRecover(int temperature) async {
+    print('[BatteryDataManager] 写入充电高温恢复: $temperature °C');
+    final success = await writeParameters(0x223, [temperature]);
+    if (success) {
+      print('[BatteryDataManager] 充电高温恢复写入成功');
+    } else {
+      print('[BatteryDataManager] 充电高温恢复写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeChargeLowTempProtect(int temperature) async {
+    print('[BatteryDataManager] 写入充电低温保护: $temperature °C');
+    final success = await writeParameters(0x224, [temperature]);
+    if (success) {
+      print('[BatteryDataManager] 充电低温保护写入成功');
+    } else {
+      print('[BatteryDataManager] 充电低温保护写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeChargeLowTempRecover(int temperature) async {
+    print('[BatteryDataManager] 写入充电低温恢复: $temperature °C');
+    final success = await writeParameters(0x225, [temperature]);
+    if (success) {
+      print('[BatteryDataManager] 充电低温恢复写入成功');
+    } else {
+      print('[BatteryDataManager] 充电低温恢复写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeDischargeHighTempProtect(int temperature) async {
+    print('[BatteryDataManager] 写入放电高温保护: $temperature °C');
+    final success = await writeParameters(0x226, [temperature]);
+    if (success) {
+      print('[BatteryDataManager] 放电高温保护写入成功');
+    } else {
+      print('[BatteryDataManager] 放电高温保护写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeDischargeHighTempRecover(int temperature) async {
+    print('[BatteryDataManager] 写入放电高温恢复: $temperature °C');
+    final success = await writeParameters(0x227, [temperature]);
+    if (success) {
+      print('[BatteryDataManager] 放电高温恢复写入成功');
+    } else {
+      print('[BatteryDataManager] 放电高温恢复写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeDischargeLowTempProtect(int temperature) async {
+    print('[BatteryDataManager] 写入放电低温保护: $temperature °C');
+    final success = await writeParameters(0x228, [temperature]);
+    if (success) {
+      print('[BatteryDataManager] 放电低温保护写入成功');
+    } else {
+      print('[BatteryDataManager] 放电低温保护写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeDischargeLowTempRecover(int temperature) async {
+    print('[BatteryDataManager] 写入放电低温恢复: $temperature °C');
+    final success = await writeParameters(0x229, [temperature]);
+    if (success) {
+      print('[BatteryDataManager] 放电低温恢复写入成功');
+    } else {
+      print('[BatteryDataManager] 放电低温恢复写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeChargeOvercurrent1Protect(int current) async {
+    print('[BatteryDataManager] 写入充电过流1保护电流: $current A');
+    final success = await writeParameters(0x220, [current]);
+    if (success) {
+      print('[BatteryDataManager] 充电过流1保护电流写入成功');
+    } else {
+      print('[BatteryDataManager] 充电过流1保护电流写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeChargeOvercurrent1Delay(int delay) async {
+    print('[BatteryDataManager] 写入充电过流1延时: $delay ms');
+    final success = await writeParameters(0x221, [delay]);
+    if (success) {
+      print('[BatteryDataManager] 充电过流1延时写入成功');
+    } else {
+      print('[BatteryDataManager] 充电过流1延时写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeDischargeOvercurrent1Protect(int current) async {
+    print('[BatteryDataManager] 写入放电过流1保护电流: $current A');
+    final success = await writeParameters(0x21A, [current]);
+    if (success) {
+      print('[BatteryDataManager] 放电过流1保护电流写入成功');
+    } else {
+      print('[BatteryDataManager] 放电过流1保护电流写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeDischargeOvercurrent1Delay(int delay) async {
+    print('[BatteryDataManager] 写入放电过流1延时: $delay ms');
+    final success = await writeParameters(0x21B, [delay]);
+    if (success) {
+      print('[BatteryDataManager] 放电过流1延时写入成功');
+    } else {
+      print('[BatteryDataManager] 放电过流1延时写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeDischargeOvercurrent2Protect(int current) async {
+    print('[BatteryDataManager] 写入放电过流2保护电流: $current A');
+    final success = await writeParameters(0x21C, [current]);
+    if (success) {
+      print('[BatteryDataManager] 放电过流2保护电流写入成功');
+    } else {
+      print('[BatteryDataManager] 放电过流2保护电流写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeDischargeOvercurrent2Delay(int delay) async {
+    print('[BatteryDataManager] 写入放电过流2延时: $delay ms');
+    final success = await writeParameters(0x21D, [delay]);
+    if (success) {
+      print('[BatteryDataManager] 放电过流2延时写入成功');
+    } else {
+      print('[BatteryDataManager] 放电过流2延时写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeShortCircuitProtect(int current) async {
+    print('[BatteryDataManager] 写入短路保护电流: $current A');
+    final success = await writeParameters(0x21E, [current]);
+    if (success) {
+      print('[BatteryDataManager] 短路保护电流写入成功');
+    } else {
+      print('[BatteryDataManager] 短路保护电流写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeShortCircuitDelay(int delay) async {
+    print('[BatteryDataManager] 写入短路保护延时: $delay us');
+    final success = await writeParameters(0x21F, [delay]);
+    if (success) {
+      print('[BatteryDataManager] 短路保护延时写入成功');
+    } else {
+      print('[BatteryDataManager] 短路保护延时写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeSamplingResistance(double resistance) async {
+    print('[BatteryDataManager] 写入采样电阻值: $resistance mΩ');
+    final success = await writeParameters(0x20E, _floatToRegisters(resistance));
+    if (success) {
+      print('[BatteryDataManager] 采样电阻值写入成功');
+    } else {
+      print('[BatteryDataManager] 采样电阻值写入失败');
+    }
+    return success;
+  }
+
+  Future<int?> readChargeOvercurrent1Protect() async {
+    print('[BatteryDataManager] [Current] 读取充电过流1保护电流: 地址 0x220');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x220,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final value = (bytes[0] << 8) | bytes[1];
+            print('[BatteryDataManager] [Current] 充电过流1保护电流: $value A');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Current] 读取充电过流1保护电流超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<int?> readChargeOvercurrent1Delay() async {
+    print('[BatteryDataManager] [Current] 读取充电过流1延时: 地址 0x221');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x221,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final value = (bytes[0] << 8) | bytes[1];
+            print('[BatteryDataManager] [Current] 充电过流1延时: $value ms');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Current] 读取充电过流1延时超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<int?> readDischargeOvercurrent1Protect() async {
+    print('[BatteryDataManager] [Current] 读取放电过流1保护电流: 地址 0x21A');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x21A,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final value = (bytes[0] << 8) | bytes[1];
+            print('[BatteryDataManager] [Current] 放电过流1保护电流: $value A');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Current] 读取放电过流1保护电流超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<int?> readDischargeOvercurrent1Delay() async {
+    print('[BatteryDataManager] [Current] 读取放电过流1延时: 地址 0x21B');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x21B,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final value = (bytes[0] << 8) | bytes[1];
+            print('[BatteryDataManager] [Current] 放电过流1延时: $value ms');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Current] 读取放电过流1延时超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<int?> readDischargeOvercurrent2Protect() async {
+    print('[BatteryDataManager] [Current] 读取放电过流2保护电流: 地址 0x21C');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x21C,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final value = (bytes[0] << 8) | bytes[1];
+            print('[BatteryDataManager] [Current] 放电过流2保护电流: $value A');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Current] 读取放电过流2保护电流超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<int?> readDischargeOvercurrent2Delay() async {
+    print('[BatteryDataManager] [Current] 读取放电过流2延时: 地址 0x21D');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x21D,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final value = (bytes[0] << 8) | bytes[1];
+            print('[BatteryDataManager] [Current] 放电过流2延时: $value ms');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Current] 读取放电过流2延时超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<int?> readShortCircuitProtect() async {
+    print('[BatteryDataManager] [Current] 读取短路保护电流: 地址 0x21E');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x21E,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final value = (bytes[0] << 8) | bytes[1];
+            print('[BatteryDataManager] [Current] 短路保护电流: $value A');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Current] 读取短路保护电流超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<int?> readShortCircuitDelay() async {
+    print('[BatteryDataManager] [Current] 读取短路保护延时: 地址 0x21F');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x21F,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final value = (bytes[0] << 8) | bytes[1];
+            print('[BatteryDataManager] [Current] 短路保护延时: $value us');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Current] 读取短路保护延时超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<double?> readSamplingResistance() async {
+    print('[BatteryDataManager] [Current] 读取采样电阻值: 地址 0x20E');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x20E,
+      quantity: 2,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<double?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 4) {
+            final value = _registersToFloat(bytes);
+            print('[BatteryDataManager] [Current] 采样电阻值: $value mΩ');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Current] 读取采样电阻值超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<int?> readBalanceStartVoltage() async {
+    print('[BatteryDataManager] [Balance] 读取均衡启动电压: 地址 0x214');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x214,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final value = (bytes[0] << 8) | bytes[1];
+            print('[BatteryDataManager] [Balance] 均衡启动电压: $value mV');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Balance] 读取均衡启动电压超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<int?> readBalanceStartThreshold() async {
+    print('[BatteryDataManager] [Balance] 读取均衡启动阈值: 地址 0x215');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x215,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final value = (bytes[0] << 8) | bytes[1];
+            print('[BatteryDataManager] [Balance] 均衡启动阈值: $value mV');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Balance] 读取均衡启动阈值超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<int?> readBalanceDelay() async {
+    print('[BatteryDataManager] [Balance] 读取均衡延时: 地址 0x216');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x216,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final value = (bytes[0] << 8) | bytes[1];
+            print('[BatteryDataManager] [Balance] 均衡延时: $value ms');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Balance] 读取均衡延时超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<bool> writeBalanceStartVoltage(int voltage) async {
+    print('[BatteryDataManager] 写入均衡启动电压: $voltage mV');
+    final success = await writeParameters(0x214, [voltage]);
+    if (success) {
+      print('[BatteryDataManager] 均衡启动电压写入成功');
+    } else {
+      print('[BatteryDataManager] 均衡启动电压写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeBalanceStartThreshold(int threshold) async {
+    print('[BatteryDataManager] 写入均衡启动阈值: $threshold mV');
+    final success = await writeParameters(0x215, [threshold]);
+    if (success) {
+      print('[BatteryDataManager] 均衡启动阈值写入成功');
+    } else {
+      print('[BatteryDataManager] 均衡启动阈值写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeBalanceDelay(int delay) async {
+    print('[BatteryDataManager] 写入均衡延时: $delay ms');
+    final success = await writeParameters(0x216, [delay]);
+    if (success) {
+      print('[BatteryDataManager] 均衡延时写入成功');
+    } else {
+      print('[BatteryDataManager] 均衡延时写入失败');
+    }
+    return success;
+  }
+
+  Future<int?> readSleepDelay() async {
+    print('[BatteryDataManager] [System] 读取休眠延时: 地址 0x206');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x206,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final value = (bytes[0] << 8) | bytes[1];
+            print('[BatteryDataManager] [System] 休眠延时: $value s');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [System] 读取休眠延时超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<int?> readShutdownDelay() async {
+    print('[BatteryDataManager] [System] 读取关机延时: 地址 0x207');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x207,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final value = (bytes[0] << 8) | bytes[1];
+            print('[BatteryDataManager] [System] 关机延时: $value s');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [System] 读取关机延时超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<int?> readRatedChargeVoltage() async {
+    print('[BatteryDataManager] [System] 读取额定充电电压: 地址 0x208');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x208,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final value = (bytes[0] << 8) | bytes[1];
+            final convertedValue = value ~/ 10;
+            print('[BatteryDataManager] [System] 额定充电电压: 原始值$value (10mV), 转换后$convertedValue (0.1V)');
+            completer.complete(convertedValue);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [System] 读取额定充电电压超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<int?> readRatedChargeCurrent() async {
+    print('[BatteryDataManager] [System] 读取额定充电电流: 地址 0x209');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x209,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final value = (bytes[0] << 8) | bytes[1];
+            final signedValue = value > 32767 ? value - 65536 : value;
+            final convertedValue = signedValue ~/ 10;
+            print('[BatteryDataManager] [System] 额定充电电流: 原始值$signedValue (10mA), 转换后$convertedValue (0.1A)');
+            completer.complete(convertedValue);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [System] 读取额定充电电流超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<int?> readFullChargeVoltage() async {
+    print('[BatteryDataManager] [System] 读取满充电压: 地址 0x20A');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x20A,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final value = (bytes[0] << 8) | bytes[1];
+            print('[BatteryDataManager] [System] 满充电压: $value mV');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [System] 读取满充电压超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<int?> readFullChargeCurrent() async {
+    print('[BatteryDataManager] [System] 读取满充电流: 地址 0x20B');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x20B,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final value = (bytes[0] << 8) | bytes[1];
+            final signedValue = value > 32767 ? value - 65536 : value;
+            print('[BatteryDataManager] [System] 满充电流: $signedValue mA');
+            completer.complete(signedValue);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [System] 读取满充电流超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<int?> readFullChargeDelay() async {
+    print('[BatteryDataManager] [System] 读取满充延时: 地址 0x20C');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x20C,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final value = (bytes[0] << 8) | bytes[1];
+            print('[BatteryDataManager] [System] 满充延时: $value s');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [System] 读取满充延时超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<int?> readZeroCurrentThreshold() async {
+    print('[BatteryDataManager] [System] 读取零电流显示阈值: 地址 0x20D');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x20D,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final value = (bytes[0] << 8) | bytes[1];
+            final signedValue = value > 32767 ? value - 65536 : value;
+            print('[BatteryDataManager] [System] 零电流显示阈值: $signedValue mA');
+            completer.complete(signedValue);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [System] 读取零电流显示阈值超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<bool> writeRatedChargeVoltage(int voltage) async {
+    final convertedVoltage = voltage * 10;
+    print('[BatteryDataManager] 写入额定充电电压: 用户输入$voltage (0.1V单位), 转换后$convertedVoltage (10mV单位)');
+    final success = await writeParameters(0x208, [convertedVoltage]);
+    if (success) {
+      print('[BatteryDataManager] 额定充电电压写入成功');
+    } else {
+      print('[BatteryDataManager] 额定充电电压写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeRatedChargeCurrent(int current) async {
+    final convertedCurrent = current * 10;
+    print('[BatteryDataManager] 写入额定充电电流: 用户输入$current (0.1A单位), 转换后$convertedCurrent (10mA单位)');
+    final success = await writeParameters(0x209, [convertedCurrent]);
+    if (success) {
+      print('[BatteryDataManager] 额定充电电流写入成功');
+    } else {
+      print('[BatteryDataManager] 额定充电电流写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeSleepDelay(int delay) async {
+    print('[BatteryDataManager] 写入休眠延时: $delay s');
+    final success = await writeParameters(0x206, [delay]);
+    if (success) {
+      print('[BatteryDataManager] 休眠延时写入成功');
+    } else {
+      print('[BatteryDataManager] 休眠延时写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeShutdownDelay(int delay) async {
+    print('[BatteryDataManager] 写入关机延时: $delay s');
+    final success = await writeParameters(0x207, [delay]);
+    if (success) {
+      print('[BatteryDataManager] 关机延时写入成功');
+    } else {
+      print('[BatteryDataManager] 关机延时写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeFullChargeVoltage(int voltage) async {
+    print('[BatteryDataManager] 写入满充电压: $voltage mV');
+    final success = await writeParameters(0x20A, [voltage]);
+    if (success) {
+      print('[BatteryDataManager] 满充电压写入成功');
+    } else {
+      print('[BatteryDataManager] 满充电压写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeFullChargeCurrent(int current) async {
+    print('[BatteryDataManager] 写入满充电流: $current mA');
+    final success = await writeParameters(0x20B, [current]);
+    if (success) {
+      print('[BatteryDataManager] 满充电流写入成功');
+    } else {
+      print('[BatteryDataManager] 满充电流写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeFullChargeDelay(int delay) async {
+    print('[BatteryDataManager] 写入满充延时: $delay s');
+    final success = await writeParameters(0x20C, [delay]);
+    if (success) {
+      print('[BatteryDataManager] 满充延时写入成功');
+    } else {
+      print('[BatteryDataManager] 满充延时写入失败');
+    }
+    return success;
+  }
+
+  Future<bool> writeZeroCurrentThreshold(int threshold) async {
+    print('[BatteryDataManager] 写入零电流显示阈值: $threshold mA');
+    final success = await writeParameters(0x20D, [threshold]);
+    if (success) {
+      print('[BatteryDataManager] 零电流显示阈值写入成功');
+    } else {
+      print('[BatteryDataManager] 零电流显示阈值写入失败');
+    }
+    return success;
+  }
+
   Future<void> readChargeDischargeStatus() async {
     final requestId = _generateRequestId();
     final request = ModbusRequest.readChargeDischargeStatus(
@@ -290,6 +1561,575 @@ class BatteryDataManager {
     );
     
     await _sendRequest(request);
+  }
+
+  Future<int?> readSetBatterySeriesCount() async {
+    print('[BatteryDataManager] [Set] 读取电池串数: 地址 0x200');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x200,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          print('[BatteryDataManager] [Set] 电池串数响应数据: ${bytes?.map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}').join(' ')}');
+          if (bytes != null && bytes.length >= 2) {
+            final value = (bytes[0] << 8) | bytes[1];
+            print('[BatteryDataManager] [Set] 电池串数解析值: $value');
+            completer.complete(value);
+          } else {
+            print('[BatteryDataManager] [Set] 电池串数响应数据不足，期望>=2字节，实际${bytes?.length}字节');
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Set] 读取电池串数超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<int?> readSetBatteryCapacity() async {
+    print('[BatteryDataManager] [Set] 读取电池容量: 地址 0x402 (2个寄存器)');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x402,
+      quantity: 2,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 4) {
+            final value = (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3];
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Set] 读取电池容量超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+  
+  Future<int?> readOverchargeProtectVoltage() async {
+    print('[BatteryDataManager] [Voltage] 读取过充保护电压: 地址 0x210');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x210,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final value = (bytes[0] << 8) | bytes[1];
+            print('[BatteryDataManager] [Voltage] 过充保护电压: $value mV');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Voltage] 读取过充保护电压超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+  
+  Future<int?> readOverchargeRecoverVoltage() async {
+    print('[BatteryDataManager] [Voltage] 读取过充恢复电压: 地址 0x211');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x211,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final value = (bytes[0] << 8) | bytes[1];
+            print('[BatteryDataManager] [Voltage] 过充恢复电压: $value mV');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Voltage] 读取过充恢复电压超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+  
+  Future<int?> readOverdischargeProtectVoltage() async {
+    print('[BatteryDataManager] [Voltage] 读取过放保护电压: 地址 0x217');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x217,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final value = (bytes[0] << 8) | bytes[1];
+            print('[BatteryDataManager] [Voltage] 过放保护电压: $value mV');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Voltage] 读取过放保护电压超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+  
+  Future<int?> readOverdischargeRecoverVoltage() async {
+    print('[BatteryDataManager] [Voltage] 读取过放恢复电压: 地址 0x218');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x218,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final value = (bytes[0] << 8) | bytes[1];
+            print('[BatteryDataManager] [Voltage] 过放恢复电压: $value mV');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Voltage] 读取过放恢复电压超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+  
+  Future<int?> readChargeHighTempProtect() async {
+    print('[BatteryDataManager] [Temp] 读取充电高温保护: 地址 0x222');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x222,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final rawValue = (bytes[0] << 8) | bytes[1];
+            final value = rawValue > 32767 ? rawValue - 65536 : rawValue;
+            print('[BatteryDataManager] [Temp] 充电高温保护: $value °C');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Temp] 读取充电高温保护超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+  
+  Future<int?> readChargeHighTempRecover() async {
+    print('[BatteryDataManager] [Temp] 读取充电高温恢复: 地址 0x223');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x223,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final rawValue = (bytes[0] << 8) | bytes[1];
+            final value = rawValue > 32767 ? rawValue - 65536 : rawValue;
+            print('[BatteryDataManager] [Temp] 充电高温恢复: $value °C');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Temp] 读取充电高温恢复超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+  
+  Future<int?> readChargeLowTempProtect() async {
+    print('[BatteryDataManager] [Temp] 读取充电低温保护: 地址 0x224');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x224,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final rawValue = (bytes[0] << 8) | bytes[1];
+            final value = rawValue > 32767 ? rawValue - 65536 : rawValue;
+            print('[BatteryDataManager] [Temp] 充电低温保护: $value °C');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Temp] 读取充电低温保护超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+  
+  Future<int?> readChargeLowTempRecover() async {
+    print('[BatteryDataManager] [Temp] 读取充电低温恢复: 地址 0x225');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x225,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final rawValue = (bytes[0] << 8) | bytes[1];
+            final value = rawValue > 32767 ? rawValue - 65536 : rawValue;
+            print('[BatteryDataManager] [Temp] 充电低温恢复: $value °C');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Temp] 读取充电低温恢复超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+  
+  Future<int?> readDischargeHighTempProtect() async {
+    print('[BatteryDataManager] [Temp] 读取放电高温保护: 地址 0x226');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x226,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final rawValue = (bytes[0] << 8) | bytes[1];
+            final value = rawValue > 32767 ? rawValue - 65536 : rawValue;
+            print('[BatteryDataManager] [Temp] 放电高温保护: $value °C');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Temp] 读取放电高温保护超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+  
+  Future<int?> readDischargeHighTempRecover() async {
+    print('[BatteryDataManager] [Temp] 读取放电高温恢复: 地址 0x227');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x227,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final rawValue = (bytes[0] << 8) | bytes[1];
+            final value = rawValue > 32767 ? rawValue - 65536 : rawValue;
+            print('[BatteryDataManager] [Temp] 放电高温恢复: $value °C');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Temp] 读取放电高温恢复超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+  
+  Future<int?> readDischargeLowTempProtect() async {
+    print('[BatteryDataManager] [Temp] 读取放电低温保护: 地址 0x228');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x228,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final rawValue = (bytes[0] << 8) | bytes[1];
+            final value = rawValue > 32767 ? rawValue - 65536 : rawValue;
+            print('[BatteryDataManager] [Temp] 放电低温保护: $value °C');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Temp] 读取放电低温保护超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+  
+  Future<int?> readDischargeLowTempRecover() async {
+    print('[BatteryDataManager] [Temp] 读取放电低温恢复: 地址 0x229');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x229,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final rawValue = (bytes[0] << 8) | bytes[1];
+            final value = rawValue > 32767 ? rawValue - 65536 : rawValue;
+            print('[BatteryDataManager] [Temp] 放电低温恢复: $value °C');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Temp] 读取放电低温恢复超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
   }
   
   Future<bool> _sendRequest(ModbusRequest request) async {
@@ -420,8 +2260,33 @@ class BatteryDataManager {
       
       if (result['success'] == true) {
         print('[BatteryDataManager] 写入成功');
+        // 找到对应的写入请求并更新状态
+        for (final entry in _pendingRequests.entries) {
+          final request = entry.value;
+          if (request.isWrite) {
+            _updateRequestStatus(request.copyWith(
+              status: ModbusRequestStatus.completed,
+              completedAt: DateTime.now(),
+            ));
+            _pendingRequests.remove(entry.key);
+            break;
+          }
+        }
       } else {
         print('[BatteryDataManager] 写入失败: ${result['error']}');
+        // 找到对应的写入请求并更新状态为失败
+        for (final entry in _pendingRequests.entries) {
+          final request = entry.value;
+          if (request.isWrite) {
+            _updateRequestStatus(request.copyWith(
+              status: ModbusRequestStatus.failed,
+              errorMessage: result['error'],
+              completedAt: DateTime.now(),
+            ));
+            _pendingRequests.remove(entry.key);
+            break;
+          }
+        }
       }
     }
   }
@@ -503,6 +2368,21 @@ class BatteryDataManager {
         _processCycleCountResponse(bytes);
         break;
         
+      case ModbusRequestType.readBatteryStringCount:
+        print('[BatteryDataManager] 处理电池串数响应 (${bytes.length}字节)');
+        _processBatteryStringCountResponse(bytes);
+        break;
+        
+      case ModbusRequestType.readCellAloneVoltage:
+        print('[BatteryDataManager] 处理单个电池电压响应 (${bytes.length}字节)');
+        _processCellAloneVoltageResponse(bytes, matchedRequest.startAddress);
+        break;
+        
+      case ModbusRequestType.readQuickSettings:
+        print('[BatteryDataManager] 处理快速设置参数响应 (${bytes.length}字节)');
+        // 快速设置参数不需要更新 _currentData，只需要确保请求状态被正确更新
+        break;
+        
       default:
         print('[BatteryDataManager] 未知的请求类型: ${matchedRequest.type}');
         break;
@@ -511,9 +2391,10 @@ class BatteryDataManager {
     // 从待处理列表中移除该请求
     _pendingRequests.remove(matchedRequestId);
     
-    // 更新请求状态
+    // 更新请求状态，包含响应数据
     _updateRequestStatus(matchedRequest!.copyWith(
       status: ModbusRequestStatus.completed,
+      response: Uint8List.fromList(bytes),
       completedAt: DateTime.now(),
     ));
   }
@@ -640,6 +2521,55 @@ class BatteryDataManager {
     );
     _batteryDataController.add(_currentData);
     print('[BatteryDataManager] 循环次数已更新: $cycleCount');
+  }
+  
+  void _processBatteryStringCountResponse(List<int> bytes) {
+    if (bytes.length < 2) {
+      print('[BatteryDataManager] 电池串数响应数据长度不足: ${bytes.length}');
+      return;
+    }
+    
+    final cellNum = bytes[0];
+    final cellType = bytes[1];
+    
+    _cellCount = cellNum;
+    
+    _currentData = _currentData.copyWith(
+      cellNumber: cellNum,
+      cellType: cellType,
+      cellCount: cellNum,
+      timestamp: DateTime.now(),
+    );
+    _batteryDataController.add(_currentData);
+    print('[BatteryDataManager] 电池串数已更新: 串数=$cellNum, 类型=$cellType');
+  }
+  
+  void _processCellAloneVoltageResponse(List<int> bytes, int startAddress) {
+    if (bytes.length < 2) {
+      print('[BatteryDataManager] 单体电压响应数据长度不足: ${bytes.length}');
+      return;
+    }
+    
+    final cellIndex = startAddress - 0x0020;
+    final voltageRaw = (bytes[0] << 8) | bytes[1];
+    final voltage = voltageRaw / 1000.0;
+    
+    _cellVoltages.add(voltage);
+    
+    print('[BatteryDataManager] 电池${cellIndex + 1}电压: ${voltage.toStringAsFixed(3)}V');
+    
+    if (_cellVoltages.length == _cellCount) {
+      _currentData = _currentData.copyWith(
+        cellVoltages: List.from(_cellVoltages),
+        timestamp: DateTime.now(),
+      );
+      _batteryDataController.add(_currentData);
+      
+      print('[BatteryDataManager] 单体电压列表已更新:');
+      for (int i = 0; i < _cellVoltages.length; i++) {
+        print('  电池${i + 1}: ${_cellVoltages[i].toStringAsFixed(3)}V');
+      }
+    }
   }
   
   void _processMainPageDataResponse(List<int> bytes) {

@@ -89,8 +89,12 @@ class ModbusProtocol {
     buffer.add(crc & 0xFF);
     buffer.add((crc >> 8) & 0xFF);
     
+    final command = Uint8List.fromList(buffer);
+    final hexString = command.map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase()).join(' ');
+    print('[ModbusProtocol] 写入报文: $hexString');
+    print('[ModbusProtocol] 写入报文详情: 从站地址=0x${slaveId.toRadixString(16)}, 起始地址=0x${startAddress.toRadixString(16)}, 寄存器数量=${values.length}, 数据=$values');
     
-    return Uint8List.fromList(buffer);
+    return command;
   }
 
   /// 解析读取保持寄存器响应
@@ -148,11 +152,11 @@ class ModbusProtocol {
   Map<String, dynamic> parseWriteResponse(Uint8List data) {
     final Map<String, dynamic> result = {};
     
-    if (data.length != 8) {
-      result['error'] = '响应长度错误';
-      result['success'] = false;
-      return result;
-    }
+    // if (data.length != 8) {
+    //   result['error'] = '响应长度错误';
+    //   result['success'] = false;
+    //   return result;
+    // }
     
     final int slaveId = data[0] & 0xFF;
     final int functionCode = data[1] & 0xFF;

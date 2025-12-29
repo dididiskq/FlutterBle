@@ -442,18 +442,18 @@ class BleController {
     
     try {
  
-      print('[BLE] 尝试使用writeWithoutResponse写入数据...');
-      print('[BLE] 数据: ${value.map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}').join(' ')}');
+      // print('[BLE] 尝试使用writeWithoutResponse写入数据...');
+      // print('[BLE] 数据: ${value.map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}').join(' ')}');
       
       try {
         await _ble.writeCharacteristicWithoutResponse(
           _writeCharacteristic!,
           value: value,
         );
-        print('[BLE] writeWithoutResponse写入成功');
+        // print('[BLE] writeWithoutResponse写入成功');
       } catch (e) {
-        print('[BLE] writeWithoutResponse写入失败: $e');
-        print('[BLE] 尝试使用writeWithResponse...');
+        // print('[BLE] writeWithoutResponse写入失败: $e');
+        // print('[BLE] 尝试使用writeWithResponse...');
         
         // 如果writeWithoutResponse失败，尝试使用writeWithResponse
         await _ble.writeCharacteristicWithResponse(
@@ -463,6 +463,7 @@ class BleController {
         print('[BLE] writeWithResponse写入成功');
       }
     } catch (e) {
+      // print('[BLE] writeWithResponse写入失败: $e');
       print('写入数据失败: $e');
       rethrow;
     }
