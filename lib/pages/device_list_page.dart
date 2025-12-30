@@ -22,12 +22,18 @@ class _DeviceListPageState extends State<DeviceListPage> {
   // 订阅流
   StreamSubscription? _scanSubscription;
   
+  // 已连接设备
+  BleDevice? _connectedDevice;
+  
   @override
   void initState() {
     super.initState();
     
     // 初始化时请求权限
     _requestPermissions();
+    
+    // 从 BleController 恢复已连接设备
+    _restoreConnectedDevice();
     
     // 监听连接状态变化
     _bleController.connectionStateStream.listen((connectionState) {
@@ -46,6 +52,13 @@ class _DeviceListPageState extends State<DeviceListPage> {
           print('[DeviceListPage] 更新设备状态: ${_devices[deviceIndex].name} -> $isConnected');
           _devices[deviceIndex].isConnected = isConnected;
           _devices[deviceIndex].isConnecting = false;
+          
+          // 更新已连接设备
+          if (isConnected) {
+            _connectedDevice = _devices[deviceIndex];
+          } else if (_connectedDevice?.id == deviceId) {
+            _connectedDevice = null;
+          }
         }
       });
     });
@@ -74,6 +87,17 @@ class _DeviceListPageState extends State<DeviceListPage> {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           Navigator.pop(context, device.name);
         });
+      } else {
+        // 断开连接，更新UI
+        setState(() {
+          if (_connectedDevice?.id == device.id) {
+            _connectedDevice = null;
+          }
+          final deviceIndex = _devices.indexWhere((d) => d.id == device.id);
+          if (deviceIndex != -1) {
+            _devices[deviceIndex].isConnected = false;
+          }
+        });
       }
     });
   }
@@ -93,6 +117,35 @@ class _DeviceListPageState extends State<DeviceListPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('请授予蓝牙和位置权限')),
         );
+      });
+    }
+  }
+
+  /// 从 BleController 恢复已连接设备
+  void _restoreConnectedDevice() {
+    final connectedDevice = _bleController.connectedDevice;
+    if (connectedDevice != null) {
+      print('[DeviceListPage] 恢复已连接设备: ${connectedDevice.name}');
+      
+      setState(() {
+        // 检查设备是否已在列表中
+        final existingIndex = _devices.indexWhere((d) => d.id == connectedDevice.id);
+        
+        if (existingIndex != -1) {
+          // 更新已存在设备的状态
+          _devices[existingIndex].isConnected = true;
+          _connectedDevice = _devices[existingIndex];
+        } else {
+          // 添加已连接设备到列表
+          final bleDevice = BleDevice(
+            id: connectedDevice.id,
+            name: connectedDevice.name,
+            rssi: connectedDevice.rssi,
+            isConnected: true,
+          );
+          _devices.add(bleDevice);
+          _connectedDevice = bleDevice;
+        }
       });
     }
   }
@@ -199,6 +252,21 @@ class _DeviceListPageState extends State<DeviceListPage> {
     }
   }
 
+  /// 断开已连接设备
+  Future<void> _disconnectConnectedDevice() async {
+    if (_connectedDevice == null) return;
+    
+    try {
+      await _bleController.disconnectFromDevice(_connectedDevice!.id);
+    } catch (error) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('断开失败: $error')),
+        );
+      });
+    }
+  }
+
   /// 获取信号强度图标
   IconData _getRssiIcon(int rssi) {
     if (rssi > -50) {
@@ -281,6 +349,77 @@ class _DeviceListPageState extends State<DeviceListPage> {
                     CircularProgressIndicator(strokeWidth: 2, color: Colors.blue),
                     const SizedBox(width: 12),
                     const Text('正在扫描蓝牙设备...', style: TextStyle(color: Colors.white)),
+                  ],
+                ),
+              ),
+            
+            // 已连接设备区域
+            if (_connectedDevice != null)
+              Container(
+                margin: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A2332),
+                  borderRadius: BorderRadius.circular(10.0),
+                  border: Border.all(color: Colors.green, width: 2),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.bluetooth_connected, color: Colors.green, size: 24),
+                        const SizedBox(width: 8),
+                        const Text(
+                          '已连接设备',
+                          style: TextStyle(
+                            color: Colors.green,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _connectedDevice!.name,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _connectedDevice!.id,
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        ElevatedButton(
+                          onPressed: _disconnectConnectedDevice,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.red, width: 2),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(5.0),
+                            ),
+                          ),
+                          child: const Text('断开'),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),

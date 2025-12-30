@@ -178,6 +178,16 @@ class BatteryDataManager {
       await readCellAloneVoltages();                   // 读取单体电压
       await Future.delayed(const Duration(milliseconds: 100));
       
+      //读取异常信息
+      await readWarningInfo();                   // 读取警告信息
+      await Future.delayed(const Duration(milliseconds: 100));
+      
+      await readProtectionInfo();                   // 读取保护信息
+      await Future.delayed(const Duration(milliseconds: 100));
+      
+      await readBatteryStatus();                   // 读取电池状态
+      await Future.delayed(const Duration(milliseconds: 100));
+      
       // await readMainPageData();                   // 读取主页数据
     } catch (e) {
       print('[BatteryDataManager] 读取数据失败: $e');
@@ -304,6 +314,36 @@ class BatteryDataManager {
     }
     
     print('[BatteryDataManager] 单体电压读取完成');
+  }
+  
+  Future<void> readWarningInfo() async {
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readWarningInfo(
+      id: requestId,
+      slaveId: _slaveId,
+    );
+    
+    await _sendRequest(request);
+  }
+
+  Future<void> readProtectionInfo() async {
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readProtectionInfo(
+      id: requestId,
+      slaveId: _slaveId,
+    );
+    
+    await _sendRequest(request);
+  }
+
+  Future<void> readBatteryStatus() async {
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readBatteryStatus(
+      id: requestId,
+      slaveId: _slaveId,
+    );
+    
+    await _sendRequest(request);
   }
   
   Future<bool> writeParameters(int startAddress, List<int> values) async {
@@ -2383,6 +2423,21 @@ class BatteryDataManager {
         // 快速设置参数不需要更新 _currentData，只需要确保请求状态被正确更新
         break;
         
+      case ModbusRequestType.readWarningInfo:
+        print('[BatteryDataManager] 处理警告信息响应 (${bytes.length}字节)');
+        _processWarningInfoResponse(bytes);
+        break;
+        
+      case ModbusRequestType.readProtectionInfo:
+        print('[BatteryDataManager] 处理保护信息响应 (${bytes.length}字节)');
+        _processProtectionInfoResponse(bytes);
+        break;
+        
+      case ModbusRequestType.readBatteryStatus:
+        print('[BatteryDataManager] 处理电池状态响应 (${bytes.length}字节)');
+        _processBatteryStatusResponse(bytes);
+        break;
+        
       default:
         print('[BatteryDataManager] 未知的请求类型: ${matchedRequest.type}');
         break;
@@ -2461,9 +2516,10 @@ class BatteryDataManager {
   }
   
   void _processChargeDischargeStatusResponse(List<int> bytes) {
+    // 5 6 7 8
     print('[BatteryDataManager] 充放电状态解析: ${bytes.map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}').join(' ')}');
-    final chargeStatus = bytes[0];
-    final dischargeStatus = bytes[1];
+    final chargeStatus = bytes[1] & 0x01;
+    final dischargeStatus = bytes[1] & 0x02;
     _currentData = _currentData.copyWith(
       chargeStatus: chargeStatus,
       dischargeStatus: dischargeStatus,
@@ -2572,6 +2628,54 @@ class BatteryDataManager {
     }
   }
   
+  void _processWarningInfoResponse(List<int> bytes) {
+    if (bytes.length < 2) {
+      print('[BatteryDataManager] 警告信息响应数据长度不足: ${bytes.length}');
+      return;
+    }
+    
+    final warningInfo = (bytes[0] << 8) | bytes[1];
+    
+    _currentData = _currentData.copyWith(
+      warningInfo: warningInfo,
+      timestamp: DateTime.now(),
+    );
+    _batteryDataController.add(_currentData);
+    print('[BatteryDataManager] 警告信息已更新: 0x${warningInfo.toRadixString(16).padLeft(4, '0')}');
+  }
+  
+  void _processProtectionInfoResponse(List<int> bytes) {
+    if (bytes.length < 4) {
+      print('[BatteryDataManager] 保护信息响应数据长度不足: ${bytes.length}');
+      return;
+    }
+    
+    final protectionInfo = (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3];
+    
+    _currentData = _currentData.copyWith(
+      protectionInfo: protectionInfo,
+      timestamp: DateTime.now(),
+    );
+    _batteryDataController.add(_currentData);
+    print('[BatteryDataManager] 保护信息已更新: 0x${protectionInfo.toRadixString(16).padLeft(8, '0')}');
+  }
+  
+  void _processBatteryStatusResponse(List<int> bytes) {
+    if (bytes.length < 2) {
+      print('[BatteryDataManager] 电池状态响应数据长度不足: ${bytes.length}');
+      return;
+    }
+    
+    final batteryStatus = (bytes[0] << 8) | bytes[1];
+    
+    _currentData = _currentData.copyWith(
+      batteryStatus: batteryStatus,
+      timestamp: DateTime.now(),
+    );
+    _batteryDataController.add(_currentData);
+    print('[BatteryDataManager] 电池状态已更新: 0x${batteryStatus.toRadixString(16).padLeft(4, '0')}');
+  }
+  
   void _processMainPageDataResponse(List<int> bytes) {
     final mainPageData = _processMainPageData(bytes);
     
@@ -2647,5 +2751,407 @@ class BatteryDataManager {
     stopBatteryLevelReading();
     _batteryDataController.close();
     _requestStatusController.close();
+  }
+
+  Future<String?> readBatterySN() async {
+    print('[BatteryDataManager] [BatteryInfo] 读取电池SN: 地址 0x230, 数量 6');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x230,
+      quantity: 6,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<String?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 12) {
+            final stringBuffer = StringBuffer();
+            for (int i = 0; i < bytes.length && i < 12; i++) {
+              if (bytes[i] != 0) {
+                stringBuffer.writeCharCode(bytes[i]);
+              }
+            }
+            final sn = stringBuffer.toString();
+            print('[BatteryDataManager] [BatteryInfo] 电池SN: $sn');
+            completer.complete(sn);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [BatteryInfo] 读取电池SN超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<String?> readManufacturer() async {
+    print('[BatteryDataManager] [BatteryInfo] 读取制造厂家: 地址 0x236, 数量 4');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x236,
+      quantity: 4,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<String?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 8) {
+            final stringBuffer = StringBuffer();
+            for (int i = 0; i < bytes.length && i < 8; i++) {
+              if (bytes[i] != 0) {
+                stringBuffer.writeCharCode(bytes[i]);
+              }
+            }
+            final manufacturer = stringBuffer.toString();
+            print('[BatteryDataManager] [BatteryInfo] 制造厂家: $manufacturer');
+            completer.complete(manufacturer);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [BatteryInfo] 读取制造厂家超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<String?> readManufacturerModel() async {
+    print('[BatteryDataManager] [BatteryInfo] 读取制造厂商型号: 地址 0x23A, 数量 12');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x23A,
+      quantity: 12,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<String?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 24) {
+            final stringBuffer = StringBuffer();
+            for (int i = 0; i < bytes.length && i < 24; i++) {
+              if (bytes[i] != 0) {
+                stringBuffer.writeCharCode(bytes[i]);
+              }
+            }
+            final model = stringBuffer.toString();
+            print('[BatteryDataManager] [BatteryInfo] 制造厂商型号: $model');
+            completer.complete(model);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [BatteryInfo] 读取制造厂商型号超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<String?> readCustomerName() async {
+    print('[BatteryDataManager] [BatteryInfo] 读取客户名称: 地址 0x246, 数量 4');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x246,
+      quantity: 4,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<String?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 8) {
+            final stringBuffer = StringBuffer();
+            for (int i = 0; i < bytes.length && i < 8; i++) {
+              if (bytes[i] != 0) {
+                stringBuffer.writeCharCode(bytes[i]);
+              }
+            }
+            final customerName = stringBuffer.toString();
+            print('[BatteryDataManager] [BatteryInfo] 客户名称: $customerName');
+            completer.complete(customerName);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [BatteryInfo] 读取客户名称超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<String?> readCustomerModel() async {
+    print('[BatteryDataManager] [BatteryInfo] 读取客户型号: 地址 0x24A, 数量 12');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x24A,
+      quantity: 12,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<String?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 24) {
+            final stringBuffer = StringBuffer();
+            for (int i = 0; i < bytes.length && i < 24; i++) {
+              if (bytes[i] != 0) {
+                stringBuffer.writeCharCode(bytes[i]);
+              }
+            }
+            final customerModel = stringBuffer.toString();
+            print('[BatteryDataManager] [BatteryInfo] 客户型号: $customerModel');
+            completer.complete(customerModel);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [BatteryInfo] 读取客户型号超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<String?> readMfgDate() async {
+    print('[BatteryDataManager] [BatteryInfo] 读取生产日期: 地址 0x256, 数量 4');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x256,
+      quantity: 4,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<String?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 8) {
+            final stringBuffer = StringBuffer();
+            for (int i = 0; i < bytes.length && i < 8; i++) {
+              if (bytes[i] != 0) {
+                stringBuffer.writeCharCode(bytes[i]);
+              }
+            }
+            final mfgDate = stringBuffer.toString();
+            print('[BatteryDataManager] [BatteryInfo] 生产日期: $mfgDate');
+            completer.complete(mfgDate);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [BatteryInfo] 读取生产日期超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<int?> readDesignCycleCount() async {
+    print('[BatteryDataManager] [BatteryInfo] 读取设计循环次数: 地址 0x400');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x400,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final value = (bytes[0] << 8) | bytes[1];
+            print('[BatteryDataManager] [BatteryInfo] 设计循环次数: $value');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [BatteryInfo] 读取设计循环次数超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<int?> readReferenceCapacity() async {
+    print('[BatteryDataManager] [BatteryInfo] 读取参考容值: 地址 0x402, 数量 2');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x402,
+      quantity: 2,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 4) {
+            final value = (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3];
+            print('[BatteryDataManager] [BatteryInfo] 参考容值: $value mah');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [BatteryInfo] 读取参考容值超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<String?> readBTCode() async {
+    print('[BatteryDataManager] [BatteryInfo] 读取BT码: 地址 0x408, 数量 16');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x408,
+      quantity: 16,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<String?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 32) {
+            final stringBuffer = StringBuffer();
+            for (int i = 0; i < bytes.length && i < 32; i++) {
+              if (bytes[i] != 0) {
+                stringBuffer.writeCharCode(bytes[i]);
+              }
+            }
+            final btCode = stringBuffer.toString();
+            print('[BatteryDataManager] [BatteryInfo] BT码: $btCode');
+            completer.complete(btCode);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [BatteryInfo] 读取BT码超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
   }
 }

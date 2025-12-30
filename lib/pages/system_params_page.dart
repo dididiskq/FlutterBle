@@ -166,11 +166,12 @@ class _SystemParamsPageState extends State<SystemParamsPage> {
       return;
     }
 
+    final currentValue = await _batteryDataManager.readRatedChargeVoltage();
     final confirmed = await WriteConfirmDialog.show(
       context,
       title: '确认写入',
       parameterName: '额定充电电压',
-      oldValue: 0,
+      oldValue: currentValue ?? 0,
       newValue: voltage,
     );
 
@@ -354,11 +355,12 @@ class _SystemParamsPageState extends State<SystemParamsPage> {
       return;
     }
 
+    final currentValue = await _batteryDataManager.readFullChargeDelay();
     final confirmed = await WriteConfirmDialog.show(
       context,
       title: '确认写入',
       parameterName: '满充延时',
-      oldValue: 0,
+      oldValue: currentValue ?? 0,
       newValue: delay,
     );
 

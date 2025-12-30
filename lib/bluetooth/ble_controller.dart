@@ -269,8 +269,21 @@ class BleController {
           print('[BLE] ★★★ 连接成功! 设备ID: ${connectionState.deviceId}');
           print('[BLE] 开始发现服务...');
           
-          // 连接成功，自动发现服务和特征
-          discoverCharacteristics(deviceId)
+          // 连接成功，请求MTU协商
+          _ble.requestMtu(deviceId: deviceId, mtu: 512).then((mtu) {
+            print('[BLE] ★★★ MTU协商成功! MTU大小: $mtu 字节');
+            print('[BLE] 最大可传输数据: ${mtu - 3} 字节 (减去3字节L2CAP开销)');
+          }).catchError((error) {
+            print('[BLE] ⚠️ MTU协商失败: $error');
+            print('[BLE] 使用默认MTU (23字节，实际数据20字节)');
+          });
+          
+          // 连接成功，等待MTU协商完成（flutter_reactive_ble会自动请求MTU为512字节）
+          Future.delayed(const Duration(milliseconds: 500), () {
+            print('[BLE] MTU协商延迟完成，开始发现服务...');
+            
+            // 连接成功，自动发现服务和特征
+            discoverCharacteristics(deviceId)
               .then((_) {
                 print('[BLE] ★★★ 特征发现完成');
                 print('[BLE] 写入特征: $_writeUuid');
@@ -321,6 +334,7 @@ class BleController {
                 print('[BLE] ★★★ 连接失败: $errorMessage');
                 _connectionResultController.add(ConnectionResultData(result, errorMessage));
               });
+          });
         } else if (connectionState.connectionState == DeviceConnectionState.disconnected) {
           // 断开连接，清理资源
           print('[BLE] ★★★ 连接断开');

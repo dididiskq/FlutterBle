@@ -7,6 +7,7 @@ import 'package:ultra_bms/managers/battery_data_manager.dart';
 import 'package:ultra_bms/models/battery_data.dart';
 import 'package:ultra_bms/pages/device_list_page.dart';
 import 'package:ultra_bms/pages/scan_page.dart';
+import 'package:ultra_bms/pages/alarm_info_page.dart';
 
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
@@ -131,6 +132,9 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
               t2Temp = data.batteryTemperature2;
               mosTemp = data.batteryTemperatureMos;
               
+              // 更新异常警报个数
+              alarmCount = data.alarmCount;
+              
               // 计算压差
               if (data.cellVoltages.isNotEmpty && data.cellVoltages.length >= 2) {
                 final maxVoltage = data.cellVoltages.reduce((a, b) => a > b ? a : b);
@@ -182,6 +186,9 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
       t1Temp = currentData.batteryTemperature1;
       t2Temp = currentData.batteryTemperature2;
       mosTemp = currentData.batteryTemperatureMos;
+      
+      // 恢复异常警报个数
+      alarmCount = currentData.alarmCount;
       
       // 计算压差
       if (currentData.cellVoltages.isNotEmpty && currentData.cellVoltages.length >= 2) {
@@ -668,39 +675,49 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   Expanded(
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 5.0),
-                      height: 100.0,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1A2332),
-                        borderRadius: BorderRadius.circular(15.0),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.warning,
-                            color: alarmCount > 0 ? Colors.red : Colors.green,
-                            size: 30.0,
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const AlarmInfoPage(),
                           ),
-                          const SizedBox(height: 5.0),
-                          const Text(
-                            '异常警报',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 12.0,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          Text(
-                            '$alarmCount',
-                            style: TextStyle(
+                        );
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 5.0),
+                        height: 100.0,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1A2332),
+                          borderRadius: BorderRadius.circular(15.0),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.warning,
                               color: alarmCount > 0 ? Colors.red : Colors.green,
-                              fontSize: 18.0,
-                              fontWeight: FontWeight.bold,
+                              size: 30.0,
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 5.0),
+                            const Text(
+                              '异常警报',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12.0,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            Text(
+                              '$alarmCount',
+                              style: TextStyle(
+                                color: alarmCount > 0 ? Colors.red : Colors.green,
+                                fontSize: 18.0,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),

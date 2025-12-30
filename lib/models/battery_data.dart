@@ -45,6 +45,20 @@ class BatteryData {
   final int functionSwitchConfig;
   final bool chargeMosOn;
   final bool dischargeMosOn;
+  
+  final String batterySN;
+  final String manufacturer;
+  final String manufacturerModel;
+  final String customerName;
+  final String customerModel;
+  final String mfgDate;
+  final int designCycleCount;
+  final int referenceCapacity;
+  final String btCode;
+  
+  final int warningInfo;
+  final int protectionInfo;
+  final int batteryStatus;
 
   BatteryData({
     required this.slaveId,
@@ -90,6 +104,18 @@ class BatteryData {
     this.functionSwitchConfig = 0,
     this.chargeMosOn = false,
     this.dischargeMosOn = false,
+    this.batterySN = '',
+    this.manufacturer = '',
+    this.manufacturerModel = '',
+    this.customerName = '',
+    this.customerModel = '',
+    this.mfgDate = '',
+    this.designCycleCount = 0,
+    this.referenceCapacity = 0,
+    this.btCode = '',
+    this.warningInfo = 0,
+    this.protectionInfo = 0,
+    this.batteryStatus = 0,
   }) : timestamp = timestamp ?? DateTime.now();
 
   factory BatteryData.empty() {
@@ -136,6 +162,18 @@ class BatteryData {
       functionSwitchConfig: 0,
       chargeMosOn: false,
       dischargeMosOn: false,
+      batterySN: '',
+      manufacturer: '',
+      manufacturerModel: '',
+      customerName: '',
+      customerModel: '',
+      mfgDate: '',
+      designCycleCount: 0,
+      referenceCapacity: 0,
+      btCode: '',
+      warningInfo: 0,
+      protectionInfo: 0,
+      batteryStatus: 0,
     );
   }
 
@@ -185,6 +223,18 @@ class BatteryData {
     int? functionSwitchConfig,
     bool? chargeMosOn,
     bool? dischargeMosOn,
+    String? batterySN,
+    String? manufacturer,
+    String? manufacturerModel,
+    String? customerName,
+    String? customerModel,
+    String? mfgDate,
+    int? designCycleCount,
+    int? referenceCapacity,
+    String? btCode,
+    int? warningInfo,
+    int? protectionInfo,
+    int? batteryStatus,
   }) {
     return BatteryData(
       slaveId: slaveId ?? this.slaveId,
@@ -230,6 +280,18 @@ class BatteryData {
       functionSwitchConfig: functionSwitchConfig ?? this.functionSwitchConfig,
       chargeMosOn: chargeMosOn ?? this.chargeMosOn,
       dischargeMosOn: dischargeMosOn ?? this.dischargeMosOn,
+      batterySN: batterySN ?? this.batterySN,
+      manufacturer: manufacturer ?? this.manufacturer,
+      manufacturerModel: manufacturerModel ?? this.manufacturerModel,
+      customerName: customerName ?? this.customerName,
+      customerModel: customerModel ?? this.customerModel,
+      mfgDate: mfgDate ?? this.mfgDate,
+      designCycleCount: designCycleCount ?? this.designCycleCount,
+      referenceCapacity: referenceCapacity ?? this.referenceCapacity,
+      btCode: btCode ?? this.btCode,
+      warningInfo: warningInfo ?? this.warningInfo,
+      protectionInfo: protectionInfo ?? this.protectionInfo,
+      batteryStatus: batteryStatus ?? this.batteryStatus,
     );
   }
 
@@ -255,6 +317,9 @@ class BatteryData {
       'batteryTemperature2': batteryTemperature2,
       'batteryTemperatureMos': batteryTemperatureMos,
       'timestamp': timestamp.toIso8601String(),
+      'warningInfo': warningInfo,
+      'protectionInfo': protectionInfo,
+      'batteryStatus': batteryStatus,
     };
   }
 
@@ -280,7 +345,28 @@ class BatteryData {
       batteryTemperature2: (json['batteryTemperature2'] as num?)?.toDouble() ?? 0.0,
       batteryTemperatureMos: (json['batteryTemperatureMos'] as num?)?.toDouble() ?? 0.0,
       timestamp: DateTime.parse(json['timestamp'] as String),
+      warningInfo: json['warningInfo'] as int? ?? 0,
+      protectionInfo: json['protectionInfo'] as int? ?? 0,
+      batteryStatus: json['batteryStatus'] as int? ?? 0,
     );
+  }
+
+  int get alarmCount {
+    int count = 0;
+    
+    for (int i = 0; i < 16; i++) {
+      if ((warningInfo & (1 << i)) != 0) count++;
+    }
+    
+    for (int i = 0; i < 32; i++) {
+      if ((protectionInfo & (1 << i)) != 0) count++;
+    }
+    
+    for (int i = 0; i < 16; i++) {
+      if ((batteryStatus & (1 << i)) != 0) count++;
+    }
+    
+    return count;
   }
 
   @override

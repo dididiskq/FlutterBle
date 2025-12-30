@@ -99,7 +99,7 @@ class ModbusProtocol {
 
   /// 解析读取保持寄存器响应
   /// 返回包含原始字节数据的 Map
-  /// BMS设备响应格式：slaveId | functionCode | 起始地址(2字节) | 返回字节数 | 数据(N字节) | CRC(2字节)
+  /// BMS设备响应格式：slaveId | functionCode | 起始地址(2字节) | 数据长度 | 数据(N字节) | CRC(2字节)
   Map<String, dynamic> parseReadResponse(Uint8List data) {
     final Map<String, dynamic> result = {};
     

@@ -15,6 +15,9 @@ enum ModbusRequestType {
   readCellAloneVoltage,     // 读取单个电池电压
   readMainPageData,     // 读取主页数据
   readQuickSettings,     // 读取快速设置参数
+  readWarningInfo,     // 读取警告信息
+  readProtectionInfo,     // 读取保护信息
+  readBatteryStatus,     // 读取电池状态
   writeParameters,      // 写入参数
   custom,               // 自定义请求
 }
@@ -259,6 +262,45 @@ class ModbusRequest {
     );
   }
 
+  factory ModbusRequest.readWarningInfo({
+    required String id,
+    int slaveId = 1,
+  }) {
+    return ModbusRequest(
+      id: id,
+      type: ModbusRequestType.readWarningInfo,
+      slaveId: slaveId,
+      startAddress: 0x000E,
+      quantity: 0x0001,
+    );
+  }
+
+  factory ModbusRequest.readProtectionInfo({
+    required String id,
+    int slaveId = 1,
+  }) {
+    return ModbusRequest(
+      id: id,
+      type: ModbusRequestType.readProtectionInfo,
+      slaveId: slaveId,
+      startAddress: 0x000C,
+      quantity: 0x0002,
+    );
+  }
+
+  factory ModbusRequest.readBatteryStatus({
+    required String id,
+    int slaveId = 1,
+  }) {
+    return ModbusRequest(
+      id: id,
+      type: ModbusRequestType.readBatteryStatus,
+      slaveId: slaveId,
+      startAddress: 0x000F,
+      quantity: 0x0001,
+    );
+  }
+
   factory ModbusRequest.writeParameters({
     required String id,
     required int slaveId,
@@ -342,7 +384,10 @@ class ModbusRequest {
       type == ModbusRequestType.readBatteryStringCount ||
       type == ModbusRequestType.readCellAloneVoltage ||
       type == ModbusRequestType.readMainPageData ||
-      type == ModbusRequestType.readQuickSettings;
+      type == ModbusRequestType.readQuickSettings ||
+      type == ModbusRequestType.readWarningInfo ||
+      type == ModbusRequestType.readProtectionInfo ||
+      type == ModbusRequestType.readBatteryStatus;
 
 
 
