@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../components/common_app_bar.dart';
 import '../managers/battery_data_manager.dart';
+import '../models/battery_data.dart';
 
 class BatteryInfoPage extends StatefulWidget {
   const BatteryInfoPage({super.key});
@@ -28,6 +29,8 @@ class _BatteryInfoPageState extends State<BatteryInfoPage> {
   String _maxUnchargedInterval = '';
   String _recentUnchargedInterval = '';
   String _btCode = '';
+
+  List<ProtectionRecord> _protectionRecords = [];
 
   bool _isLoading = false;
 
@@ -144,6 +147,14 @@ class _BatteryInfoPageState extends State<BatteryInfoPage> {
       });
     }
 
+    final protectionRecords = await _batteryDataManager.readProtectionRecords();
+    if (protectionRecords != null && mounted) {
+      setState(() {
+        _protectionRecords = protectionRecords;
+      });
+      print('[BatteryInfoPage] 读取到 ${protectionRecords.length} 条保护记录');
+    }
+
     if (mounted) {
       setState(() {
         _isLoading = false;
@@ -203,6 +214,9 @@ class _BatteryInfoPageState extends State<BatteryInfoPage> {
                 _buildInfoRow('最近未充电间隔时间', _recentUnchargedInterval.isEmpty ? '-' : _recentUnchargedInterval),
                 _buildInfoRow('BT码', _btCode.isEmpty ? '-' : _btCode),
                 const SizedBox(height: 20.0),
+                
+                // 保护记录区域
+                _buildProtectionRecordsSection(),
               ],
               
               const SizedBox(height: 20.0),
@@ -237,6 +251,146 @@ class _BatteryInfoPageState extends State<BatteryInfoPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildProtectionRecordsSection() {
+    if (_protectionRecords.isEmpty) {
+      return Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A2332),
+          borderRadius: BorderRadius.circular(10.0),
+          border: Border.all(color: const Color(0xFF3A475E), width: 1),
+        ),
+        padding: const EdgeInsets.all(20.0),
+        child: const Text(
+          '暂无保护记录',
+          style: TextStyle(color: Colors.grey, fontSize: 16.0),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '保护记录',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18.0,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 12.0),
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A2332),
+            borderRadius: BorderRadius.circular(10.0),
+            border: Border.all(color: const Color(0xFF3A475E), width: 1),
+          ),
+          child: Column(
+            children: [
+              // 表头
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF2A3B55),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(10.0),
+                    topRight: Radius.circular(10.0),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 1,
+                      child: Text(
+                        '序号',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14.0,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        '保护时间',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14.0,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        '保护事件',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14.0,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // 数据行
+              ..._protectionRecords.map((record) => Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Colors.grey.withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 1,
+                      child: Text(
+                        '${record.index}',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13.0,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        record.time,
+                        style: const TextStyle(
+                          color: Colors.blue,
+                          fontSize: 13.0,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        record.event,
+                        style: const TextStyle(
+                          color: Colors.orange,
+                          fontSize: 13.0,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )).toList(),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

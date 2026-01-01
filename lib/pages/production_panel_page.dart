@@ -1,8 +1,18 @@
 import 'package:flutter/material.dart';
 import '../components/common_app_bar.dart';
+import '../components/write_confirm_dialog.dart';
+import '../managers/battery_data_manager.dart';
 
-class ProductionPanelPage extends StatelessWidget {
+class ProductionPanelPage extends StatefulWidget {
   const ProductionPanelPage({super.key});
+
+  @override
+  State<ProductionPanelPage> createState() => _ProductionPanelPageState();
+}
+
+class _ProductionPanelPageState extends State<ProductionPanelPage> {
+  final BatteryDataManager _batteryDataManager = BatteryDataManager();
+  final TextEditingController _bluetoothNameController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
@@ -19,8 +29,26 @@ class ProductionPanelPage extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
-                    // 实现电流归零功能
+                  onPressed: () async {
+                    final confirmed = await WriteConfirmDialog.show(
+                      context,
+                      title: '确认电流归零',
+                      parameterName: '电流归零',
+                      oldValue: '当前值',
+                      newValue: '0',
+                    );
+                    
+                    if (confirmed && mounted) {
+                      final success = await _batteryDataManager.writeParameters(0x0101, [0]);
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(success ? '电流归零成功' : '电流归零失败'),
+                            backgroundColor: success ? Colors.green : Colors.red,
+                          ),
+                        );
+                      }
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1A2332),
@@ -46,6 +74,7 @@ class ProductionPanelPage extends StatelessWidget {
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: TextField(
+                  controller: _bluetoothNameController,
                   style: const TextStyle(color: Colors.white),
                   decoration: const InputDecoration(
                     hintText: '请输入蓝牙名称',
@@ -61,8 +90,54 @@ class ProductionPanelPage extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
-                    // 实现写入蓝牙名称功能
+                  onPressed: () async {
+                    final bluetoothName = _bluetoothNameController.text.trim();
+                    
+                    if (bluetoothName.isEmpty) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('蓝牙名称不能为空'),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
+                      }
+                      return;
+                    }
+                    
+                    if (bluetoothName.length > 24) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('蓝牙名称不能超过24个字符'),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
+                      }
+                      return;
+                    }
+                    
+                    final confirmed = await WriteConfirmDialog.show(
+                      context,
+                      title: '确认写入蓝牙名称',
+                      parameterName: '蓝牙名称',
+                      oldValue: '当前名称',
+                      newValue: bluetoothName,
+                    );
+                    
+                    if (confirmed && mounted) {
+                      final nameBytes = bluetoothName.codeUnits.toList();
+                      final success = await _batteryDataManager.writeParameters(0x24A, nameBytes);
+                      
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(success ? '蓝牙名称写入成功' : '蓝牙名称写入失败'),
+                            backgroundColor: success ? Colors.green : Colors.red,
+                          ),
+                        );
+                      }
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1A2332),

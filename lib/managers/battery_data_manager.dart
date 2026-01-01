@@ -3154,4 +3154,212 @@ class BatteryDataManager {
     subscription.cancel();
     return result;
   }
+
+  Future<List<ProtectionRecord>?> readProtectionRecords() async {
+    print('[BatteryDataManager] [Protection] 读取保护记录: 时间地址 0x418, 事件地址 0x448, 数量 24');
+    
+    final List<ProtectionRecord> records = [];
+    
+    for (int i = 1; i <= 24; i++) {
+      final timeAddress = 0x418 + 0x02 * (i - 1);
+      final eventAddress = 0x448 + 0x02 * (i - 1);
+      
+      final timeValue = await _readProtectionTime(timeAddress);
+      final eventValue = await _readProtectionEvent(eventAddress);
+      
+      if (timeValue != null && eventValue != null) {
+        records.add(ProtectionRecord(
+          index: i,
+          time: timeValue,
+          event: eventValue,
+        ));
+      }
+      
+      await Future.delayed(const Duration(milliseconds: 50));
+    }
+    
+    return records;
+  }
+  
+  Future<String?> _readProtectionTime(int address) async {
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: address,
+      quantity: 2,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<String?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 4) {
+            final a = (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3];
+            
+            if (a == 0) {
+              completer.complete(null);
+              return;
+            }
+            
+            final year = ((a & 0xFC000000) >> 26) + 2022;
+            final month = (a & 0x03C00000) >> 22;
+            final day = (a & 0x003E0000) >> 17;
+            final hour = (a & 0x0001F000) >> 12;
+            final minute = (a & 0x00000FC0) >> 6;
+            final second = a & 0x0000003F;
+            
+            final timeStr = '${year}-${month.toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')} '
+                          '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}:${second.toString().padLeft(2, '0')}';
+            
+            print('[BatteryDataManager] [Protection] 保护时间 (地址 0x${address.toRadixString(16).padLeft(3, '0')}): $timeStr');
+            completer.complete(timeStr);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Protection] 读取保护时间超时 (地址 0x${address.toRadixString(16).padLeft(3, '0')})');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+  
+  Future<String?> _readProtectionEvent(int address) async {
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: address,
+      quantity: 2,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<String?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 4) {
+            final a = (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3];
+            
+            if (a == 0) {
+              completer.complete(null);
+              return;
+            }
+            
+            final eventStr = '0x${a.toRadixString(16).padLeft(8, '0').toUpperCase()}';
+            
+            print('[BatteryDataManager] [Protection] 保护事件 (地址 0x${address.toRadixString(16).padLeft(3, '0')}): $eventStr');
+            completer.complete(eventStr);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Protection] 读取保护事件超时 (地址 0x${address.toRadixString(16).padLeft(3, '0')})');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<int?> readSwitchConfig() async {
+    print('[BatteryDataManager] [Control] 读取开关配置寄存器: 地址 0x205');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x205,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final value = (bytes[0] << 8) | bytes[1];
+            print('[BatteryDataManager] [Control] 开关配置寄存器值: 0x${value.toRadixString(16).padLeft(4, '0')}');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Control] 读取开关配置寄存器超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
+
+  Future<int?> readControlFlags() async {
+    print('[BatteryDataManager] [Control] 读取控制标志寄存器: 地址 0x000F');
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readQuickSettings(
+      id: requestId,
+      slaveId: _slaveId,
+      startAddress: 0x000F,
+      quantity: 1,
+    );
+    
+    await _sendRequest(request);
+    
+    final completer = Completer<int?>();
+    
+    final subscription = requestStatusStream.listen((event) {
+      if (event.id == requestId) {
+        if (event.status == ModbusRequestStatus.completed) {
+          final bytes = event.response;
+          if (bytes != null && bytes.length >= 2) {
+            final value = (bytes[0] << 8) | bytes[1];
+            print('[BatteryDataManager] [Control] 控制标志寄存器值: 0x${value.toRadixString(16).padLeft(4, '0')}');
+            completer.complete(value);
+          } else {
+            completer.complete(null);
+          }
+        } else if (event.status == ModbusRequestStatus.failed) {
+          completer.complete(null);
+        }
+      }
+    });
+    
+    final result = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+      print('[BatteryDataManager] [Control] 读取控制标志寄存器超时');
+      return null;
+    });
+    
+    subscription.cancel();
+    return result;
+  }
 }

@@ -195,7 +195,9 @@ class _AlarmInfoPageState extends State<AlarmInfoPage> {
         ),
         Container(
           width: double.infinity,
-          constraints: const BoxConstraints(maxHeight: 300),
+          constraints: BoxConstraints(
+            maxHeight: items.isEmpty ? 60 : 300,
+          ),
           decoration: BoxDecoration(
             color: const Color(0xFF1A2332),
             border: Border.all(color: const Color(0xFF3A475E), width: 1),

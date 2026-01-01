@@ -390,3 +390,21 @@ class BatteryData {
 
   bool get isNotEmpty => !isEmpty;
 }
+
+/// 保护记录数据模型
+class ProtectionRecord {
+  final int index;
+  final String time;
+  final String event;
+  
+  ProtectionRecord({
+    required this.index,
+    required this.time,
+    required this.event,
+  });
+  
+  @override
+  String toString() {
+    return 'ProtectionRecord{index: $index, time: $time, event: $event}';
+  }
+}
