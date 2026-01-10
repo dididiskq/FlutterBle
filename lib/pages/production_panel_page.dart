@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:qr_code_scanner/qr_code_scanner.dart';
 import '../components/common_app_bar.dart';
 import '../components/write_confirm_dialog.dart';
 import '../managers/battery_data_manager.dart';
@@ -13,6 +14,49 @@ class ProductionPanelPage extends StatefulWidget {
 class _ProductionPanelPageState extends State<ProductionPanelPage> {
   final BatteryDataManager _batteryDataManager = BatteryDataManager();
   final TextEditingController _bluetoothNameController = TextEditingController();
+  final GlobalKey qrKey = GlobalKey(debugLabel: 'QR');
+  QRViewController? controller;
+  bool isScanning = false;
+  String scannedData = '';
+
+  @override
+  void dispose() {
+    controller?.dispose();
+    _bluetoothNameController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void reassemble() {
+    super.reassemble();
+    if (controller != null) {
+      controller!.pauseCamera();
+      controller!.resumeCamera();
+    }
+  }
+
+  void _onQRViewCreated(QRViewController controller) {
+    this.controller = controller;
+    controller.scannedDataStream.listen((scanData) {
+      if (scanData.code != null && scanData.code!.isNotEmpty) {
+        setState(() {
+          scannedData = scanData.code!;
+          _bluetoothNameController.text = scannedData;
+          isScanning = false;
+        });
+        controller.pauseCamera();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('扫描成功: $scannedData'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -159,7 +203,9 @@ class _ProductionPanelPageState extends State<ProductionPanelPage> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    // 实现扫一扫功能
+                    setState(() {
+                      isScanning = !isScanning;
+                    });
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1A2332),
@@ -171,9 +217,35 @@ class _ProductionPanelPageState extends State<ProductionPanelPage> {
                       side: const BorderSide(color: Color(0xFF3A475E), width: 1),
                     ),
                   ),
-                  child: const Text('扫一扫'),
+                  child: Text(isScanning ? '关闭扫描' : '扫一扫'),
                 ),
               ),
+              const SizedBox(height: 20.0),
+              
+              // 扫描框区域
+              if (isScanning)
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A2332),
+                    borderRadius: BorderRadius.circular(10.0),
+                    border: Border.all(color: const Color(0xFF3A475E), width: 1),
+                  ),
+                  height: 300,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10.0),
+                    child: QRView(
+                      key: qrKey,
+                      onQRViewCreated: _onQRViewCreated,
+                      overlay: QrScannerOverlayShape(
+                        borderColor: Colors.blue,
+                        borderRadius: 10,
+                        borderLength: 30,
+                        borderWidth: 10,
+                        cutOutSize: 250,
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

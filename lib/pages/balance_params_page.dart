@@ -31,9 +31,10 @@ class _BalanceParamsPageState extends State<BalanceParamsPage> {
     _balanceStartVoltageController = TextEditingController(text: '0');
     _balanceStartThresholdController = TextEditingController(text: '0');
     _balanceDelayController = TextEditingController(text: '0');
-    
+   
     // 页面加载时读取数据
     _readSettingsData();
+ 
   }
 
   @override
@@ -219,7 +220,7 @@ class _BalanceParamsPageState extends State<BalanceParamsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const CommonAppBar(title: '均衡参数'),
+      appBar:  CommonAppBar(title: '均衡参数'),
       body: Container(
         color: const Color(0xFF0A1128),
         child: Padding(

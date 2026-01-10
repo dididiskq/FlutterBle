@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import '../managers/battery_data_manager.dart';
 
 // 通用AppBar组件
 class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
-  
-  const CommonAppBar({super.key, required this.title});
+  final BatteryDataManager _batteryDataManager = BatteryDataManager();
+  CommonAppBar({super.key, required this.title});
 
+ 
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -26,6 +28,8 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
               ),
             ),
             onPressed: () {
+              // 开始自动读取
+              _batteryDataManager.startAutoRead();
               Navigator.pop(context);
             },
             child: const Text('返回'),

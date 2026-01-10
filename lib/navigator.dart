@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ultra_bms/managers/battery_data_manager.dart';
 import 'package:ultra_bms/pages/main_page.dart';
 import 'package:ultra_bms/pages/mine_page.dart';
 import 'package:ultra_bms/pages/set_page.dart';
@@ -12,6 +13,9 @@ class MainNavigator extends StatefulWidget {
 
 class _MainNavigatorState extends State<MainNavigator> {
   int _currentIndex = 1; // 默认选中主页
+  
+  // 电池数据管理器（单例）
+  final BatteryDataManager _batteryDataManager = BatteryDataManager();
 
   final List<Widget> _pages = const [
     SetPage(),
@@ -19,10 +23,33 @@ class _MainNavigatorState extends State<MainNavigator> {
     MinePage(),
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    // 根据初始页面类型控制数据读取
+    _controlDataReading(_currentIndex);
+  }
+
   void _onTabTapped(int index) {
     setState(() {
       _currentIndex = index;
+      // 根据新页面类型控制数据读取
+      _controlDataReading(index);
     });
+  }
+  
+  // 根据页面索引控制数据读取
+  void _controlDataReading(int index) {
+    // 更新 BatteryDataManager 中的当前页面索引
+    _batteryDataManager.setCurrentIndex(index);
+    
+    if (index == 0 || index == 1) {
+      // 首页或设置页，启动自动读取
+      _batteryDataManager.startAutoRead();
+    } else {
+      // 其他页面，停止自动读取
+      _batteryDataManager.stopAutoRead();
+    }
   }
 
   @override

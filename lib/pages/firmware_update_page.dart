@@ -25,11 +25,11 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
   String _upgradeMessage = '就绪';
   
   // 服务器地址
-  static const String BASE_URL = "http://10.105.116.227:8000";
+  static const String BASE_URL = "http://192.168.43.34:8000";
   
   // 固件信息
-  String _firmwareVersion = 'V1.0.0';
-  String _softwareVersion = 'V2.1.5';
+  String _firmwareVersion = 'V1.0.0'; 
+  String _softwareVersion = 'V1.0.0';
   String? _selectedFirmwareFile;
   int? _selectedFirmwareSize; // 存储固件文件大小(字节)
   
@@ -252,7 +252,11 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
   // 开始升级
   Future<void> _startUpgrade() async {
     try {
-      await _otaUpgrader.startUpgrade();
+      // 在开始升级前确保设置数据已加载
+      await _otaUpgrader.loadSettingData();
+      
+      // 使用默认值1作为OTA选择参数（1-4之间）
+      await _otaUpgrader.startUpgrade(otaSelection: 1);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('升级失败: $e')),

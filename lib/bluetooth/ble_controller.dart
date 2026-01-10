@@ -39,20 +39,167 @@ class BleController {
   final FlutterReactiveBle _ble = FlutterReactiveBle();
   final BmsProtocol _protocol = BmsProtocol();
   
-  // 蓝牙UUID常量
+  // 蓝牙UUID常量 - 正常业务功能
   static const String SERVICE_UUID = "00002760-08C2-11E1-9073-0E8AC72E1001";
   static const String WRITE_UUID = "00002760-08C2-11E1-9073-0E8AC72E0001";
   static const String NOTIFY_UUID = "00002760-08C2-11E1-9073-0E8AC72E0002";
+  
+  // 蓝牙UUID常量 - OTA升级功能
+  static const String OTA_SERVICE_UUID = "11110001-1111-1111-1111-111111111111";
+  static const String OTA_WRITE_UUID = "11110002-1111-1111-1111-111111111111";
+  static const String OTA_NOTIFY_UUID = "11110003-1111-1111-1111-111111111111";
   
   // 使用Uuid.parse创建Uuid对象（flutter_reactive_ble库的Uuid）
   static final Uuid _serviceUuid = Uuid.parse(SERVICE_UUID);
   static final Uuid _writeUuid = Uuid.parse(WRITE_UUID);
   static final Uuid _notifyUuid = Uuid.parse(NOTIFY_UUID);
   
+  static final Uuid _otaServiceUuid = Uuid.parse(OTA_SERVICE_UUID);
+  static final Uuid _otaWriteUuid = Uuid.parse(OTA_WRITE_UUID);
+  static final Uuid _otaNotifyUuid = Uuid.parse(OTA_NOTIFY_UUID);
+  
+  // 当前使用的UUID（默认使用正常业务UUID）
+  Uuid _currentServiceUuid = _serviceUuid;
+  Uuid _currentWriteUuid = _writeUuid;
+  Uuid _currentNotifyUuid = _notifyUuid;
+  
   // 公开访问方法
-  Uuid get serviceUuid => _serviceUuid;
-  Uuid get writeUuid => _writeUuid;
-  Uuid get notifyUuid => _notifyUuid;
+  Uuid get serviceUuid => _currentServiceUuid;
+  Uuid get writeUuid => _currentWriteUuid;
+  Uuid get notifyUuid => _currentNotifyUuid;
+  
+  /// 切换到OTA模式（使用OTA升级专用UUID）
+  Future<void> enableOtaMode() async {
+    print('[BLE] 切换到OTA模式');
+    
+    // 先检查设备是否已连接
+    if (_connectedDevice == null) {
+      print('[BLE] 警告：尝试切换到OTA模式，但设备未连接');
+      // 仅切换UUID，不执行服务发现
+      _currentServiceUuid = _otaServiceUuid;
+      _currentWriteUuid = _otaWriteUuid;
+      _currentNotifyUuid = _otaNotifyUuid;
+      return;
+    }
+    
+    // 权限应该在连接设备之前就已经获取，不再重复请求
+    // 避免权限请求导致的连接中断问题
+    
+    // 取消当前通知订阅
+    if (_notificationSubscription != null) {
+      print('[BLE] 取消当前通知订阅');
+      await _notificationSubscription!.cancel();
+      _notificationSubscription = null;
+    }
+    
+    // 切换到OTA专用UUID
+    print('[BLE] 切换到OTA专用UUID');
+    _currentServiceUuid = _otaServiceUuid;
+    _currentWriteUuid = _otaWriteUuid;
+    _currentNotifyUuid = _otaNotifyUuid;
+    
+    // 重置服务和特征状态
+    print('[BLE] 重置服务和特征状态');
+    _discoveredService = null;
+    _commandCharacteristic = null;
+    _dataCharacteristic = null;
+    
+    // OTA模式切换重试次数
+    const maxRetries = 3;
+    // 重试间隔
+    const retryDelay = Duration(milliseconds: 800);
+    
+    for (int retry = 0; retry < maxRetries; retry++) {
+      try {
+        print('[BLE] 开始重新发现OTA服务和特征 (重试 $retry/$maxRetries)');
+        
+  
+        // 重新发现服务和特征
+        await discoverCharacteristics(_connectedDevice!.id);
+        
+        // 启用通知
+        await enableNotification();
+        
+        // 👇 新增：重新协商 MTU（关键！）
+        try {
+          final mtu = await _ble.requestMtu(deviceId: _connectedDevice!.id, mtu: 512);
+          print('[BLE] OTA 模式下 MTU 协商成功! MTU = $mtu');
+        } catch (e) {
+          print('[BLE] ⚠️ OTA 模式下 MTU 协商失败: $e');
+ 
+        }
+        print('[BLE] OTA模式切换成功');
+        print('[BLE] 当前服务UUID: $_currentServiceUuid');
+        print('[BLE] 当前写入特征UUID: $_currentWriteUuid');
+        print('[BLE] 当前通知特征UUID: $_currentNotifyUuid');
+        return; // 成功，退出方法
+      } catch (e) {
+        print('[BLE] OTA模式切换失败 (重试 $retry/$maxRetries): $e');
+        
+        // 检查是否是权限错误
+        if (e.toString().contains('GATTINSUF_AUTHORIZATION') || 
+            e.toString().contains('PERMISSION') || 
+            e.toString().contains('authorization')) {
+          print('[BLE] 权限认证失败，尝试重新请求权限...');
+          await requestPermissions();
+        }
+        
+        // 清理资源
+        _notificationSubscription?.cancel();
+        _notificationSubscription = null;
+        
+        // 重置服务和特征状态
+        _discoveredService = null;
+        _commandCharacteristic = null;
+        _dataCharacteristic = null;
+        
+        // 如果不是最后一次重试，等待一段时间后重试
+        if (retry < maxRetries - 1) {
+          print('[BLE] 等待 $retryDelay 后重试OTA模式切换...');
+          await Future.delayed(retryDelay);
+          
+          // 重新设置UUID，确保模式正确
+          _currentServiceUuid = _otaServiceUuid;
+          _currentWriteUuid = _otaWriteUuid;
+          _currentNotifyUuid = _otaNotifyUuid;
+        }
+      }
+    }
+    
+    // 如果所有重试都失败，抛出异常
+    throw Exception('OTA模式切换失败，已重试 $maxRetries 次');
+  }
+  
+  /// 切换到正常模式（使用正常业务UUID）
+  Future<void> disableOtaMode() async {
+    print('[BLE] 切换到正常模式');
+    
+    // 如果已连接设备，先断开通知订阅
+    _notificationSubscription?.cancel();
+    _notificationSubscription = null;
+    
+    // 切换UUID
+    _currentServiceUuid = _serviceUuid;
+    _currentWriteUuid = _writeUuid;
+    _currentNotifyUuid = _notifyUuid;
+    
+    // 如果已连接设备，重新发现服务和特征
+    if (_connectedDevice != null) {
+      print('[BLE] 重新发现正常业务服务和特征');
+      _discoveredService = null;
+      _commandCharacteristic = null;
+      _dataCharacteristic = null;
+      
+      try {
+        await discoverCharacteristics(_connectedDevice!.id);
+        await enableNotification();
+        print('[BLE] 正常业务服务和特征发现完成');
+      } catch (e) {
+        print('[BLE] 重新发现正常业务服务失败: $e');
+        rethrow;
+      }
+    }
+  }
   
   // 蓝牙状态流
   Stream<BleStatus> get bleStatusStream => _ble.statusStream;
@@ -70,14 +217,31 @@ class BleController {
     return _connectedDevice;
   }
   
-  // 连接状态流
+  ///// 连接状态流
   final StreamController<ConnectionStateUpdate> _connectionStateController = StreamController.broadcast();
   Stream<ConnectionStateUpdate> get connectionStateStream => _connectionStateController.stream;
   
+  /// 当前连接状态
+  DeviceConnectionState _currentConnectionState = DeviceConnectionState.disconnected;
+  DeviceConnectionState get connectionState => _currentConnectionState;
+  
+  /// 检查设备是否已连接
+  bool get isConnected => _connectedDevice != null && _currentConnectionState == DeviceConnectionState.connected;
+  
+  /// 确保设备已连接的辅助方法
+  void ensureConnected() {
+    if (!isConnected) {
+      throw Exception('设备未连接，请先连接设备');
+    }
+    if (_commandCharacteristic == null) {
+      throw Exception('未找到命令控制特征，请重新连接设备');
+    }
+  }
+  
   // 发现的服务和特征
   DiscoveredService? _discoveredService;
-  QualifiedCharacteristic? _writeCharacteristic;
-  QualifiedCharacteristic? _notifyCharacteristic;
+  QualifiedCharacteristic? _commandCharacteristic;   // 命令控制特征 (ius_cc: 11110003) - 用于发送命令和接收响应
+  QualifiedCharacteristic? _dataCharacteristic;      // 数据传输特征 (ius_rc: 11110002) - 用于传输大量数据
   
   // 通知数据流
   final StreamController<List<int>> _notificationStreamController = StreamController.broadcast();
@@ -99,26 +263,40 @@ class BleController {
 
   /// 请求蓝牙和位置权限
   Future<bool> requestPermissions() async {
-    // 检查Android版本并请求相应的蓝牙权限
-    if (await Permission.bluetoothScan.request().isDenied) {
+    print('[BLE] 开始请求权限...');
+    
+    // 请求Android 12+所需的蓝牙权限
+    var bluetoothScanStatus = await Permission.bluetoothScan.request();
+    if (bluetoothScanStatus.isDenied) {
+      print('[BLE] 蓝牙扫描权限被拒绝');
       return false;
     }
     
-    if (await Permission.bluetoothConnect.request().isDenied) {
+    var bluetoothConnectStatus = await Permission.bluetoothConnect.request();
+    if (bluetoothConnectStatus.isDenied) {
+      print('[BLE] 蓝牙连接权限被拒绝');
       return false;
     }
     
-    // 传统蓝牙权限（针对旧版Android）
-    if (await Permission.bluetooth.request().isDenied) {
-      return false;
+
+    
+    // 请求传统蓝牙权限（针对旧版Android）
+    var bluetoothStatus = await Permission.bluetooth.request();
+    if (bluetoothStatus.isDenied) {
+      print('[BLE] 传统蓝牙权限被拒绝');
+      // 传统蓝牙权限不是必须的，继续尝试
     }
     
-    // 请求位置权限（Android需要位置权限才能扫描蓝牙）
-    final locationStatus = await Permission.location.request();
-    if (!locationStatus.isGranted) {
-      return false;
+    // 请求位置权限（Android 11及以下需要位置权限才能扫描蓝牙）
+    var locationStatus = await Permission.location.request();
+    if (locationStatus.isDenied) {
+      print('[BLE] 位置权限被拒绝');
+      // 在Android 12+上，蓝牙扫描不再需要位置权限
+      // 但为了兼容性，我们仍然尝试请求，但不强制要求
+      print('[BLE] 继续执行，位置权限可能不是必须的');
     }
     
+    print('[BLE] 权限请求完成');
     return true;
   }
 
@@ -141,34 +319,127 @@ class BleController {
     print('[BLE] 开始发现服务...');
     print('[BLE] 目标服务UUID: $serviceId');
     
-    try {
-      final services = await _ble.discoverServices(deviceId);
-      print('[BLE] 发现 ${services.length} 个服务');
-      
-      // 打印所有发现的服务
-      for (int i = 0; i < services.length; i++) {
-        print('[BLE]   服务[$i]: ${services[i].serviceId} (包含 ${services[i].characteristics.length} 个特征)');
+    // 服务发现重试次数
+    const maxRetries = 3;
+    // 重试间隔
+    const retryDelay = Duration(milliseconds: 500);
+    
+    for (int retry = 0; retry < maxRetries; retry++) {
+      try {
+        // 权限应该在连接设备之前就已经获取，不再重复请求
+        // 避免权限请求导致的连接中断问题
+        // final permissionsGranted = await requestPermissions();
+        // if (!permissionsGranted) {
+        //   print('[BLE] 权限不足，无法发现服务');
+        //   await Future.delayed(retryDelay);
+        //   continue;
+        // }
+        
+        final services = await _ble.discoverServices(deviceId);
+        print('[BLE] 发现 ${services.length} 个服务');
+        
+        // 打印所有发现的服务
+        for (int i = 0; i < services.length; i++) {
+          print('[BLE]   服务[$i]: ${services[i].serviceId} (包含 ${services[i].characteristics.length} 个特征)');
+        }
+        
+        // 先尝试查找目标服务
+        if (serviceId != null) {
+          try {
+            final service = services.firstWhere(
+              (service) => service.serviceId == serviceId,
+              orElse: () => throw Exception('未找到指定服务: $serviceId'),
+            );
+            
+            print('[BLE] ★★★ 找到目标服务: ${service.serviceId}');
+            print('[BLE] 服务包含 ${service.characteristics.length} 个特征');
+            _discoveredService = service;
+            return service;
+          } catch (serviceError) {
+            print('[BLE] 未找到目标服务，尝试查找其他服务...');
+          }
+        }
+        
+        // 如果找不到目标服务或目标服务为null，尝试查找OTA服务
+        try {
+          final otaService = services.firstWhere(
+            (service) => service.serviceId == _otaServiceUuid,
+            orElse: () => throw Exception('未找到OTA服务'),
+          );
+          
+          // 如果找到OTA服务，自动切换到OTA模式
+          print('[BLE] ★★★ 找到OTA服务，自动切换到OTA模式');
+          _currentServiceUuid = _otaServiceUuid;
+          _currentWriteUuid = _otaWriteUuid;
+          _currentNotifyUuid = _otaNotifyUuid;
+          
+          _discoveredService = otaService;
+          print('[BLE] ★★★ 使用OTA服务: ${otaService.serviceId}');
+          print('[BLE] 服务包含 ${otaService.characteristics.length} 个特征');
+          return otaService;
+        } catch (otaError) {
+          print('[BLE] 未找到OTA服务，尝试查找普通服务...');
+        }
+        
+        // 如果找不到OTA服务，尝试查找普通服务
+        try {
+          final normalService = services.firstWhere(
+            (service) => service.serviceId == _serviceUuid,
+            orElse: () => throw Exception('未找到普通服务'),
+          );
+          
+          // 如果找到普通服务，切换到普通模式
+          print('[BLE] ★★★ 找到普通服务，切换到普通模式');
+          _currentServiceUuid = _serviceUuid;
+          _currentWriteUuid = _writeUuid;
+          _currentNotifyUuid = _notifyUuid;
+          
+          _discoveredService = normalService;
+          print('[BLE] ★★★ 使用普通服务: ${normalService.serviceId}');
+          print('[BLE] 服务包含 ${normalService.characteristics.length} 个特征');
+          return normalService;
+        } catch (normalError) {
+          print('[BLE] 未找到任何已知服务');
+        }
+        
+        // 如果找不到任何已知服务，尝试使用第一个服务
+        if (services.isNotEmpty) {
+          final firstService = services.first;
+          print('[BLE] ★★★ 找到第一个服务: ${firstService.serviceId}');
+          print('[BLE] 服务包含 ${firstService.characteristics.length} 个特征');
+          _discoveredService = firstService;
+          return firstService;
+        }
+        
+        // 如果没有找到任何服务，抛出异常
+        throw Exception('未找到任何服务');
+      } catch (e) {
+        print('[BLE] ★★★ 发现服务失败 (重试 $retry/$maxRetries): $e');
+        
+        // 检查是否是权限错误
+        if (e.toString().contains('GATTINSUF_AUTHORIZATION') || 
+            e.toString().contains('PERMISSION') || 
+            e.toString().contains('authorization')) {
+          print('[BLE] 权限认证失败，尝试重新请求权限...');
+          await requestPermissions();
+        }
+        
+        // 如果不是最后一次重试，等待一段时间后重试
+        if (retry < maxRetries - 1) {
+          print('[BLE] 等待 $retryDelay 后重试服务发现...');
+          await Future.delayed(retryDelay);
+        }
       }
-      
-      final service = services.firstWhere(
-        (service) => service.serviceId == serviceId,
-        orElse: () => throw Exception('未找到指定服务: $serviceId'),
-      );
-      
-      print('[BLE] ★★★ 找到目标服务: ${service.serviceId}');
-      print('[BLE] 服务包含 ${service.characteristics.length} 个特征');
-      _discoveredService = service;
-      return service;
-    } catch (e) {
-      print('[BLE] ★★★ 发现服务失败: $e');
-      rethrow;
     }
+    
+    // 如果所有重试都失败，抛出异常
+    throw Exception('服务发现失败，已重试 $maxRetries 次');
   }
 
   /// 发现指定特征
   Future<void> discoverCharacteristics(String deviceId) async {
     if (_discoveredService == null) {
-      await discoverService(deviceId, _serviceUuid);
+      await discoverService(deviceId, _currentServiceUuid);
     }
 
     try {
@@ -179,31 +450,31 @@ class BleController {
         print('[BLE]   特征[$i]: ${char.characteristicId}');
       }
       
-      // 查找写入特征
-      final writeChar = _discoveredService!.characteristics.firstWhere(
-        (char) => char.characteristicId == _writeUuid,
-        orElse: () => throw Exception('未找到写入特征: $_writeUuid'),
+      // 查找数据传输特征 (ius_rc: 11110002) - 用于传输大量数据
+      final dataChar = _discoveredService!.characteristics.firstWhere(
+        (char) => char.characteristicId == _currentWriteUuid,
+        orElse: () => throw Exception('未找到数据传输特征: $_currentWriteUuid'),
       );
       
-      print('[BLE] 写入特征: ${writeChar.characteristicId}');
+      print('[BLE] 数据传输特征: ${dataChar.characteristicId}');
       
-      _writeCharacteristic = QualifiedCharacteristic(
-        serviceId: _serviceUuid,
-        characteristicId: _writeUuid,
+      _dataCharacteristic = QualifiedCharacteristic(
+        serviceId: _currentServiceUuid,
+        characteristicId: _currentWriteUuid,
         deviceId: deviceId,
       );
 
-      // 查找通知特征
-      final notifyChar = _discoveredService!.characteristics.firstWhere(
-        (char) => char.characteristicId == _notifyUuid,
-        orElse: () => throw Exception('未找到通知特征: $_notifyUuid'),
+      // 查找命令控制特征 (ius_cc: 11110003) - 用于发送命令和接收响应
+      final commandChar = _discoveredService!.characteristics.firstWhere(
+        (char) => char.characteristicId == _currentNotifyUuid,
+        orElse: () => throw Exception('未找到命令控制特征: $_currentNotifyUuid'),
       );
       
-      print('[BLE] 通知特征: ${notifyChar.characteristicId}');
+      print('[BLE] 命令控制特征: ${commandChar.characteristicId}');
       
-      _notifyCharacteristic = QualifiedCharacteristic(
-        serviceId: _serviceUuid,
-        characteristicId: _notifyUuid,
+      _commandCharacteristic = QualifiedCharacteristic(
+        serviceId: _currentServiceUuid,
+        characteristicId: _currentNotifyUuid,
         deviceId: deviceId,
       );
     } catch (e) {
@@ -214,21 +485,35 @@ class BleController {
 
   /// 启用通知
   Future<void> enableNotification() async {
-    if (_notifyCharacteristic == null) {
+    if (_commandCharacteristic == null) {
       throw Exception('未找到通知特征，请先调用discoverCharacteristics');
     }
 
     try {
+      print('[BLE] 开始订阅通知特征: ${_commandCharacteristic!.characteristicId}');
+      
+      // 取消之前的订阅
+      _notificationSubscription?.cancel();
+      _notificationSubscription = null;
+      
       // 订阅通知
       _notificationSubscription = _ble
-          .subscribeToCharacteristic(_notifyCharacteristic!)
+          .subscribeToCharacteristic(_commandCharacteristic!)
           .listen((data) {
+        print('[BLE] 收到通知数据: $data');
         _notificationStreamController.add(data);
       }, onError: (error) {
-        print('通知订阅失败: $error');
+        print('[BLE] 通知订阅失败: $error');
+      }, onDone: () {
+        print('[BLE] 通知订阅流已关闭');
       });
+      
+      print('[BLE] 通知订阅已建立');
+      
+      // 等待一小段时间确保订阅生效
+      await Future.delayed(const Duration(milliseconds: 100));
     } catch (e) {
-      print('启用通知失败: $e');
+      print('[BLE] 启用通知失败: $e');
       rethrow;
     }
   }
@@ -244,8 +529,8 @@ class BleController {
     try {
       // 重置状态
       _discoveredService = null;
-      _writeCharacteristic = null;
-      _notifyCharacteristic = null;
+      _commandCharacteristic = null;
+      _dataCharacteristic = null;
       _notificationSubscription?.cancel();
       _notificationSubscription = null;
       _connectionSubscription?.cancel();
@@ -261,6 +546,9 @@ class BleController {
       
       // 保存连接流订阅，用于后续断开连接
       _connectionSubscription = connectionStream.listen((connectionState) {
+        // 更新当前连接状态
+        _currentConnectionState = connectionState.connectionState;
+        
         _connectionStateController.add(connectionState);
         
         print('[BLE] 连接状态变化: ${connectionState.connectionState}');
@@ -286,8 +574,8 @@ class BleController {
             discoverCharacteristics(deviceId)
               .then((_) {
                 print('[BLE] ★★★ 特征发现完成');
-                print('[BLE] 写入特征: $_writeUuid');
-                print('[BLE] 通知特征: $_notifyUuid');
+                print('[BLE] 写入特征: $_currentWriteUuid');
+                print('[BLE] 通知特征: $_currentNotifyUuid');
                 
                 // 启用通知
                 return enableNotification();
@@ -340,8 +628,8 @@ class BleController {
           print('[BLE] ★★★ 连接断开');
           _connectedDevice = null;
           _discoveredService = null;
-          _writeCharacteristic = null;
-          _notifyCharacteristic = null;
+          _commandCharacteristic = null;
+          _dataCharacteristic = null;
           _notificationSubscription?.cancel();
           _notificationSubscription = null;
         } else if (connectionState.connectionState == DeviceConnectionState.connecting) {
@@ -393,8 +681,8 @@ class BleController {
       // 重置状态
       _connectedDevice = null;
       _discoveredService = null;
-      _writeCharacteristic = null;
-      _notifyCharacteristic = null;
+      _commandCharacteristic = null;
+      _dataCharacteristic = null;
       
       // 发送断开连接设备事件
       _connectedDeviceController.add(BleDevice(
@@ -420,12 +708,12 @@ class BleController {
 
   /// 主动读取通知特征值
   Future<Uint8List> readNotifyCharacteristic() async {
-    if (_notifyCharacteristic == null) {
+    if (_commandCharacteristic == null) {
       throw Exception('未找到通知特征，请先连接设备');
     }
     
     try {
-      final data = await _ble.readCharacteristic(_notifyCharacteristic!);
+      final data = await _ble.readCharacteristic(_commandCharacteristic!);
       return Uint8List.fromList(data);
     } catch (e) {
       print('读取通知特征值失败: $e');
@@ -435,12 +723,12 @@ class BleController {
 
   /// 读取写入特征值
   Future<Uint8List> readWriteCharacteristic() async {
-    if (_writeCharacteristic == null) {
+    if (_dataCharacteristic == null) {
       throw Exception('未找到写入特征，请先连接设备');
     }
     
     try {
-      final data = await _ble.readCharacteristic(_writeCharacteristic!);
+      final data = await _ble.readCharacteristic(_dataCharacteristic!);
       return Uint8List.fromList(data);
     } catch (e) {
       print('读取写入特征值失败: $e');
@@ -450,7 +738,7 @@ class BleController {
 
   /// 写入数据到特征值
   Future<void> writeData(Uint8List value, {bool? withResponse}) async {
-    if (_writeCharacteristic == null) {
+    if (_dataCharacteristic == null) {
       throw Exception('未找到写入特征，请先连接设备');
     }
     
@@ -461,7 +749,7 @@ class BleController {
       
       try {
         await _ble.writeCharacteristicWithoutResponse(
-          _writeCharacteristic!,
+          _dataCharacteristic!,
           value: value,
         );
         // print('[BLE] writeWithoutResponse写入成功');
@@ -471,7 +759,7 @@ class BleController {
         
         // 如果writeWithoutResponse失败，尝试使用writeWithResponse
         await _ble.writeCharacteristicWithResponse(
-          _writeCharacteristic!,
+          _dataCharacteristic!,
           value: value,
         );
         print('[BLE] writeWithResponse写入成功');
@@ -481,6 +769,148 @@ class BleController {
       print('写入数据失败: $e');
       rethrow;
     }
+  }
+
+  /// 写入OTA命令到命令控制特征 (ius_cc: 11110003)
+  Future<void> writeOtaCommand(Uint8List value, {bool? withResponse}) async {
+    // 确保设备已连接且命令特征可用
+    ensureConnected();
+    
+    try {
+      print('[BLE] 写入OTA命令到命令控制特征: ${_commandCharacteristic!.characteristicId}');
+      print('[BLE] 命令数据: ${value.map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}').join(' ')}');
+      
+      // OTA命令必须使用writeWithResponse确保可靠性和获取响应
+      // 忽略withResponse参数，强制使用可靠写入
+      await _ble.writeCharacteristicWithResponse(
+        _commandCharacteristic!,
+        value: value,
+      );
+      print('[BLE] OTA命令写入成功 (writeWithResponse)');
+    } catch (e) {
+      print('[BLE] 写入OTA命令失败: $e');
+      rethrow;
+    }
+  }
+
+  /// 写入OTA数据到数据传输特征 (ius_rc: 11110002)
+  /// 数据传输使用writeWithoutResponse提高效率
+  Future<void> writeOtaData(Uint8List data) async {
+    ensureConnected();
+    
+    if (_dataCharacteristic == null) {
+      throw Exception('未找到数据传输特征，请先连接设备');
+    }
+
+    try {
+      print('[BLE] 写入OTA数据到数据传输特征: ${_dataCharacteristic!.characteristicId}');
+      print('[BLE] 数据长度: ${data.length} bytes');
+      
+      // 数据传输使用writeWithoutResponse提高效率
+      await _ble.writeCharacteristicWithoutResponse(
+        _dataCharacteristic!,
+        value: data,
+      );
+      print('[BLE] OTA数据写入成功 (writeWithoutResponse)');
+    } catch (e) {
+      print('[BLE] 写入OTA数据失败: $e');
+      rethrow;
+    }
+  }
+  
+  /// 发送OTA命令并等待响应（参考Java代码的实现方式）
+  /// 使用直接订阅特征通知的方式，确保响应的准确性
+  Future<List<int>> sendOtaCommandAndWaitResponse(
+    Uint8List command, {
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    // 确保设备已连接且命令特征可用
+    ensureConnected();
+
+    final commandId = command[0];
+    print('[BLE] 发送OTA命令并等待响应: 命令ID=0x${commandId.toRadixString(16)}');
+    
+    final Completer<List<int>> completer = Completer<List<int>>();
+    
+    // 直接订阅命令特征的通知流，确保只接收当前命令的响应
+    // 避免使用全局通知流导致的响应混乱问题
+    StreamSubscription<List<int>>? subscription;
+    
+    // 检查是否已经有全局订阅，如果有，先保存它
+    final existingSubscription = _notificationSubscription;
+    
+    try {
+        
+        // 直接订阅命令特征的通知
+        subscription = _ble.subscribeToCharacteristic(_commandCharacteristic!).listen(
+          (data) {
+            // 确保设备仍处于连接状态
+            if (!isConnected) {
+              print('[BLE] 设备已断开连接，忽略响应');
+              if (!completer.isCompleted) {
+                completer.completeError(Exception('设备已断开连接'));
+              }
+              return;
+            }
+            
+            print('[BLE] 收到OTA响应数据: $data');
+            
+            // 检查响应是否匹配当前命令
+            if (data.isNotEmpty && data[0] == commandId) {
+              print('[BLE] 响应匹配命令ID=0x${commandId.toRadixString(16)}');
+              if (!completer.isCompleted) {
+                completer.complete(data);
+              }
+            } else if (data.isNotEmpty) {
+              print('[BLE] 收到不匹配的响应，命令ID=0x${commandId.toRadixString(16)}，响应ID=0x${data[0].toRadixString(16)}');
+              // 对于不匹配的响应，我们不应该完成completer，而是继续等待正确的响应
+            } else {
+              print('[BLE] 收到空响应，忽略');
+            }
+          },
+          onError: (error) {
+            print('[BLE] OTA命令响应监听错误: $error');
+            if (!completer.isCompleted) {
+              completer.completeError(error);
+            }
+          },
+          onDone: () {
+            print('[BLE] OTA命令响应流已关闭');
+            if (!completer.isCompleted) {
+              completer.completeError(Exception('响应流已关闭'));
+            }
+          },
+        );
+        
+        // 等待一小段时间确保订阅生效
+        await Future.delayed(const Duration(milliseconds: 200));
+        
+        // 发送命令 - 所有OTA命令都必须使用writeWithResponse确保可靠性
+        // 不允许回退到writeWithoutResponse，因为OTA命令需要确保设备确认
+        await _ble.writeCharacteristicWithResponse(
+          _commandCharacteristic!,
+          value: command,
+        );
+        print('[BLE] OTA命令写入成功 (writeWithResponse)');
+        
+        // 等待响应或超时
+        final response = await completer.future.timeout(timeout);
+        print('[BLE] OTA命令响应接收成功');
+        
+        return response;
+      } catch (e) {
+        print('[BLE] OTA命令执行失败: $e');
+        rethrow;
+      } finally {
+        // 取消临时订阅
+        await subscription?.cancel();
+        
+        // 如果之前有全局订阅，恢复它
+        if (existingSubscription != null) {
+          print('[BLE] 恢复全局通知订阅');
+          _notificationSubscription = existingSubscription;
+        }
+      }
   }
 
   /// 便捷方法：发送命令
@@ -514,6 +944,38 @@ class BleController {
   /// 构建发送命令（新API）
   Uint8List buildCommand(int commandId, Map<String, dynamic> data) {
     return _protocol.buildCommand(commandId, data);
+  }
+
+  /// 获取当前MTU值
+  int? get getMtu {
+    if (_connectedDevice != null) {
+      try {
+        // 从flutter_reactive_ble获取MTU值
+        // 注意：flutter_reactive_ble库可能不直接提供获取MTU的方法
+        // 这里可能需要根据库的API进行调整
+        return null; // 暂时返回null，因为flutter_reactive_ble可能不直接支持获取MTU
+      } catch (e) {
+        print('[BLE] 获取MTU失败: $e');
+        return null;
+      }
+    }
+    return null;
+  }
+
+  /// 设置MTU值（如果支持）
+  Future<void> setMtu(int mtu) async {
+    if (_connectedDevice != null) {
+      try {
+        // flutter_reactive_ble库可能不直接支持设置MTU
+        // 在实际实现中，可能需要使用其他方式或库来设置MTU
+        print('[BLE] 设置MTU为: $mtu');
+        // 注意：flutter_reactive_ble库通常不提供直接的setMtu方法
+        // MTU协商通常在连接过程中自动完成
+      } catch (e) {
+        print('[BLE] 设置MTU失败: $e');
+        rethrow;
+      }
+    }
   }
 
   /// 检查蓝牙状态

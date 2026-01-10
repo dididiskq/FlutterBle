@@ -41,9 +41,10 @@ class _TemperatureParamsPageState extends State<TemperatureParamsPage> {
     _dischargeHighTempRecoverController = TextEditingController(text: '0');
     _dischargeLowTempProtectController = TextEditingController(text: '0');
     _dischargeLowTempRecoverController = TextEditingController(text: '0');
-    
+  
     // 页面加载时读取数据
     _readSettingsData();
+ 
   }
 
   @override

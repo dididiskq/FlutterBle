@@ -29,9 +29,10 @@ class _QuickSettingsPageState extends State<QuickSettingsPage> {
     // 初始化控制器
     _batterySeriesController = TextEditingController(text: '0');
     _batteryCapacityController = TextEditingController(text: '0');
-    
+ 
     // 页面加载时读取数据
     _readSettingsData();
+ 
   }
 
   Future<void> _readSettingsData() async {
@@ -39,7 +40,7 @@ class _QuickSettingsPageState extends State<QuickSettingsPage> {
       print('[QuickSettingsPage] 设备未连接，无法读取数据');
       return;
     }
-
+    
     print('[QuickSettingsPage] 开始读取快速设置数据...');
 
     // 读取电池串数
@@ -246,7 +247,7 @@ class _QuickSettingsPageState extends State<QuickSettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const CommonAppBar(title: '快速设置'),
+      appBar:  CommonAppBar(title: '快速设置'),
       body: Container(
         color: const Color(0xFF0A1128),
         child: Padding(

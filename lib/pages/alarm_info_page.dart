@@ -154,7 +154,7 @@ class _AlarmInfoPageState extends State<AlarmInfoPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0A1128),
-      appBar: const CommonAppBar(title: '异常信息'),
+      appBar:  CommonAppBar(title: '异常信息'),
       body: Container(
         color: const Color(0xFF0A1128),
         child: SingleChildScrollView(

@@ -33,9 +33,10 @@ class _VoltageParamsPageState extends State<VoltageParamsPage> {
     _overchargeRecoverController = TextEditingController(text: '0');
     _overdischargeProtectController = TextEditingController(text: '0');
     _overdischargeRecoverController = TextEditingController(text: '0');
-    
+   
     // 页面加载时读取数据
     _readSettingsData();
+   
   }
 
   Future<void> _readSettingsData() async {

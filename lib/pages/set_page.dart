@@ -25,6 +25,7 @@ class SetPage extends StatefulWidget {
 
 class _SetPageState extends State<SetPage> {
   final BatteryDataManager _batteryDataManager = BatteryDataManager();
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   List<double> _cellVoltages = [];
   int _cellNumber = 0;
   
@@ -220,6 +221,7 @@ class _SetPageState extends State<SetPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(60.0),
         child: Container(
@@ -233,13 +235,14 @@ class _SetPageState extends State<SetPage> {
               // 左侧侧边栏按钮
               SizedBox(
                 width: 80.0,
-                child: Builder(
-                  builder: (context) => IconButton(
-                    icon: const Icon(Icons.menu, color: Colors.white),
-                    onPressed: () {
-                      Scaffold.of(context).openDrawer();
-                    },
-                  ),
+                child: IconButton(
+                  icon: const Icon(Icons.menu, color: Colors.white),
+                  onPressed: () {
+                    print('展开');
+                    // 抽屉打开时停止自动读取
+                    _batteryDataManager.stopAutoRead();
+                    _scaffoldKey.currentState?.openDrawer();
+                  },
                 ),
               ),
               // ultra bms标签
@@ -305,6 +308,8 @@ class _SetPageState extends State<SetPage> {
                   onTap: () {
                     // 关闭抽屉
                     Navigator.pop(context);
+                    // 抽屉关闭时重新启动自动读取
+                    // _batteryDataManager.startAutoRead();
                     // 跳转到对应页面
                     Navigator.push(
                       context,

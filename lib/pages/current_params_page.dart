@@ -44,8 +44,10 @@ class _CurrentParamsPageState extends State<CurrentParamsPage> {
     _shortCircuitDelayController = TextEditingController(text: '0');
     _samplingResistanceController = TextEditingController(text: '0');
     
+   
     // 页面加载时读取数据
     _readSettingsData();
+ 
   }
 
   @override
@@ -488,7 +490,7 @@ class _CurrentParamsPageState extends State<CurrentParamsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const CommonAppBar(title: '电流参数'),
+      appBar:  CommonAppBar(title: '电流参数'),
       body: Container(
         color: const Color(0xFF0A1128),
         child: Padding(

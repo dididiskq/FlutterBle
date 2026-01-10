@@ -43,8 +43,11 @@ class BatteryDataManager {
   int _temperatureCount = 4;
   int _currentCellIndex = 0;
   List<double> _cellVoltages = [];
-  Duration _readInterval = const Duration(seconds: 1);
+  Duration _readInterval = const Duration(seconds: 3);
   Duration _batteryLevelReadInterval = const Duration(milliseconds: 500);
+  bool _isAutoReadingEnabled = true;
+  
+  int _currentIndex = 1; // 默认选中主页
   
   void setSlaveId(int slaveId) {
     _slaveId = slaveId;
@@ -66,6 +69,14 @@ class BatteryDataManager {
     }
   }
   
+  void setCurrentIndex(int index) {
+    _currentIndex = index;
+    // 如果切换到我的页，停止自动读取
+    if (index == 2) {
+      stopAutoRead();
+    }
+  }
+  
   bool get isConnected => _bleController.connectedDevice != null;
   
   void _logConnectionStatus() {
@@ -83,6 +94,12 @@ class BatteryDataManager {
     if (_readTimer != null && _readTimer!.isActive) {
       return;
     }
+    //如果导航页是我的页，不启动自动读取
+    if (_currentIndex == 2) {
+      return;
+    }
+    
+    _isAutoReadingEnabled = true;
     
     _readTimer = Timer.periodic(_readInterval, (_) {
       readAllData();
@@ -96,6 +113,7 @@ class BatteryDataManager {
   }
   
   void stopAutoRead() {
+    _isAutoReadingEnabled = false;
     _readTimer?.cancel();
     _readTimer = null;
     _timeoutCheckTimer?.cancel();
@@ -133,7 +151,7 @@ class BatteryDataManager {
   }
   
   Future<void> readAllData() async {
-    if (!isConnected || _isReading) {
+    if (!isConnected || _isReading || !_isAutoReadingEnabled) {
       return;
     }
     
@@ -141,52 +159,80 @@ class BatteryDataManager {
     
     try {
       await readBatteryLevel();                   // 读取电池电量(SOC/SOH)
+      if (!_isAutoReadingEnabled) return;
       await Future.delayed(const Duration(milliseconds: 100));
+      if (!_isAutoReadingEnabled) return;
       
       await readBatteryDc();                  // 读取总容量
+      if (!_isAutoReadingEnabled) return;
       await Future.delayed(const Duration(milliseconds: 100));
+      if (!_isAutoReadingEnabled) return;
       
       await readCellVoltages();                   // 读取总电压
+      if (!_isAutoReadingEnabled) return;
       await Future.delayed(const Duration(milliseconds: 100));
+      if (!_isAutoReadingEnabled) return;
 
       //读取总电流
       await readCellCurrent();                   // 读取总电流
+      if (!_isAutoReadingEnabled) return;
       await Future.delayed(const Duration(milliseconds: 100));
+      if (!_isAutoReadingEnabled) return;
       
       //读取充放电状态
       await readChargeDischargeStatus();                   // 读取充放电状态
+      if (!_isAutoReadingEnabled) return;
       await Future.delayed(const Duration(milliseconds: 100));
+      if (!_isAutoReadingEnabled) return;
       
       await readTemperatures1();                   // 读取温度1数据
+      if (!_isAutoReadingEnabled) return;
       await Future.delayed(const Duration(milliseconds: 100));
+      if (!_isAutoReadingEnabled) return;
       
       await readTemperatures2();                   // 读取温度2数据
+      if (!_isAutoReadingEnabled) return;
       await Future.delayed(const Duration(milliseconds: 100));
+      if (!_isAutoReadingEnabled) return;
       
       await readTemperaturesMos();                   // 读取Mos温度数据
+      if (!_isAutoReadingEnabled) return;
       await Future.delayed(const Duration(milliseconds: 100));
+      if (!_isAutoReadingEnabled) return;
       
       // 读取循环次数
       await readCycleCount();                   // 读取循环次数
+      if (!_isAutoReadingEnabled) return;
       await Future.delayed(const Duration(milliseconds: 100));
+      if (!_isAutoReadingEnabled) return;
 
       //读取电池串数
       await readBatteryStringCount();                   // 读取电池串数
+      if (!_isAutoReadingEnabled) return;
       await Future.delayed(const Duration(milliseconds: 100));
+      if (!_isAutoReadingEnabled) return;
       
       //读取单体电压
       await readCellAloneVoltages();                   // 读取单体电压
+      if (!_isAutoReadingEnabled) return;
       await Future.delayed(const Duration(milliseconds: 100));
+      if (!_isAutoReadingEnabled) return;
       
       //读取异常信息
       await readWarningInfo();                   // 读取警告信息
+      if (!_isAutoReadingEnabled) return;
       await Future.delayed(const Duration(milliseconds: 100));
+      if (!_isAutoReadingEnabled) return;
       
       await readProtectionInfo();                   // 读取保护信息
+      if (!_isAutoReadingEnabled) return;
       await Future.delayed(const Duration(milliseconds: 100));
+      if (!_isAutoReadingEnabled) return;
       
       await readBatteryStatus();                   // 读取电池状态
+      if (!_isAutoReadingEnabled) return;
       await Future.delayed(const Duration(milliseconds: 100));
+      if (!_isAutoReadingEnabled) return;
       
       // await readMainPageData();                   // 读取主页数据
     } catch (e) {

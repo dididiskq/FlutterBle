@@ -42,8 +42,10 @@ class _SystemParamsPageState extends State<SystemParamsPage> {
     _fullChargeCurrentController = TextEditingController(text: '0');
     _zeroCurrentThresholdController = TextEditingController(text: '0');
     
+   
     // 页面加载时读取数据
     _readSettingsData();
+    
   }
 
   @override

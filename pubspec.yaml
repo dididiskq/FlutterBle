@@ -55,6 +55,10 @@ dependencies:
   # HTTP package for server communication
   # 使用与Dart 2.19.6兼容的版本
   http: ^0.13.6
+  
+  # Archive package for handling ZIP files
+  # 使用与Dart 2.19.6兼容的版本
+  archive: ^3.4.10
 
 dev_dependencies:
   flutter_test:

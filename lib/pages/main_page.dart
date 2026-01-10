@@ -299,11 +299,14 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
                         borderRadius: BorderRadius.circular(5.0),
                       ),
                     ),
-                    onPressed: () {
-                      Navigator.push(
+                    onPressed: () async {
+                      final result = await Navigator.push(
                         context, 
                         MaterialPageRoute(builder: (context) => const ScanPage()),
                       );
+                      if (result != null && result is String) {
+                        _updateDeviceInfo(result);
+                      }
                     },
                     child: const Text('扫一扫'),
                   ),

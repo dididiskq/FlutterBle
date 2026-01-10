@@ -1,6 +1,10 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:qr_code_scanner/qr_code_scanner.dart';
+import 'package:ultra_bms/bluetooth/ble_controller.dart';
 
 class ScanPage extends StatefulWidget {
   const ScanPage({super.key});
@@ -14,11 +18,75 @@ class _ScanPageState extends State<ScanPage> {
   QRViewController? _controller;
   bool _isPermissionGranted = false;
   String? _scanResult;
+  bool _isConnecting = false;
+  String _connectionStatus = '';
+  
+  // 连接相关流订阅
+  StreamSubscription<ConnectionStateUpdate>? _connectionStateSubscription;
+  StreamSubscription<ConnectionResultData>? _connectionResultSubscription;
+  StreamSubscription<BleDevice>? _connectedDeviceSubscription;
 
   @override
   void initState() {
     super.initState();
     _requestCameraPermission();
+    
+    // 获取BleController单例实例
+    final bleController = BleController();
+    
+    // 监听连接状态变化
+    _connectionStateSubscription = bleController.connectionStateStream.listen((state) {
+      print('[ScanPage] 连接状态变化: ${state.connectionState}');
+      
+      if (mounted) {
+        setState(() {
+          // 可以根据连接状态更新UI
+        });
+      }
+    });
+    
+    // 监听连接结果
+    _connectionResultSubscription = bleController.connectionResultStream.listen((result) {
+      print('[ScanPage] 连接结果: ${result.result}');
+      
+      if (mounted) {
+        if (result.result == ConnectionResult.success) {
+          print('[ScanPage] 连接成功！');
+        } else {
+          print('[ScanPage] 连接失败: ${result.message}');
+          
+          setState(() {
+            _isConnecting = false;
+            _connectionStatus = '连接失败：${result.message}';
+          });
+          
+          // 显示错误提示
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(_connectionStatus)),
+          );
+          
+          // 重置扫描结果，允许重新扫描
+          Future.delayed(const Duration(seconds: 2), () {
+            if (mounted) {
+              setState(() {
+                _scanResult = null;
+                _connectionStatus = '';
+              });
+            }
+          });
+        }
+      }
+    });
+    
+    // 监听连接成功设备
+    _connectedDeviceSubscription = bleController.connectedDeviceStream.listen((device) {
+      print('[ScanPage] 连接成功设备: ${device.name}');
+      
+      if (mounted && device.isConnected) {
+        // 设备连接成功，自动返回首页
+        Navigator.pop(context, device.name);
+      }
+    });
   }
 
   Future<void> _requestCameraPermission() async {
@@ -43,19 +111,111 @@ class _ScanPageState extends State<ScanPage> {
     
     // 启用连续扫描
     controller.scannedDataStream.listen((scanData) {
-      print('检测到扫描数据');
-      setState(() {
-        _scanResult = scanData.code;
-        print('二维码识别结果: $_scanResult');
-        print('扫描数据详情: ${scanData.rawBytes}');
-        print('识别格式: ${scanData.format}');
-      });
+      if (_scanResult == null) { // 避免重复处理
+        print('检测到扫描数据');
+        
+        // 检查页面是否仍在挂载状态
+        if (mounted) {
+          setState(() {
+            _scanResult = scanData.code;
+            _isConnecting = true;
+            _connectionStatus = '正在解析二维码...';
+          });
+        }
+        
+        print('二维码识别结果: ${scanData.code}');
+        
+        if (scanData.code != null) {
+          _handleScanResult(scanData.code!);
+        }
+      }
     });
+  }
+  
+  Future<void> _handleScanResult(String result) async {
+    // 检查页面是否仍在挂载状态
+    if (!mounted) return;
+    
+    try {
+      // 解析二维码内容
+      final parts = result.split('|');
+      // if (parts.length != 2) {
+      //   throw Exception('二维码格式错误');
+      // }
+      
+      // final mac = parts[0];
+      // final uuid = parts[1];
+      
+      // 显示请稍后提示
+      if (mounted) {
+        setState(() {
+          _connectionStatus = '请稍后，正在连接设备...';
+        });
+      }
+      
+      // 根据平台选择设备ID
+      final deviceId = Platform.isAndroid ? parts[0] : parts[1];
+      final deviceName = '扫码连接设备';
+      
+      print('[ScanPage] 设备ID: $deviceId');
+      print('[ScanPage] 设备名称: $deviceName');
+      
+      // 获取BleController单例实例
+      final bleController = BleController();
+      
+      // 连接设备
+      await bleController.connectToDevice(deviceId, deviceName: deviceName);
+      
+      // 检查页面是否仍在挂载状态
+      if (!mounted) return;
+      
+      // 连接成功，自动返回首页
+      // 与设备列表连接行为保持一致，返回首页后会自动开始读取数据
+      Navigator.pop(context, deviceName);
+      
+    } catch (e) {
+      // 检查页面是否仍在挂载状态
+      if (!mounted) return;
+      
+      setState(() {
+        _isConnecting = false;
+        _connectionStatus = '连接失败：$e';
+      });
+      
+      // 显示错误提示
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_connectionStatus)),
+      );
+      
+      // 重置扫描结果，允许重新扫描
+      await Future.delayed(const Duration(seconds: 2));
+      
+      // 再次检查页面是否仍在挂载状态
+      if (!mounted) return;
+      
+      setState(() {
+        _scanResult = null;
+        _connectionStatus = '';
+      });
+    }
   }
 
   @override
   void dispose() {
+    // 取消连接相关流订阅
+    _connectionStateSubscription?.cancel();
+    _connectionResultSubscription?.cancel();
+    _connectedDeviceSubscription?.cancel();
+    
+    // 释放相机控制器资源
     _controller?.dispose();
+    _controller = null;
+    
+    // 重置扫描结果，防止后续操作继续执行
+    _scanResult = null;
+    _isConnecting = false;
+    _connectionStatus = '';
+    
     super.dispose();
   }
 
@@ -122,6 +282,29 @@ class _ScanPageState extends State<ScanPage> {
                 ),
                 // 自定义扫描框
                 _buildScanFrame(),
+                // 连接状态提示
+                if (_isConnecting)
+                  Positioned(
+                    top: 100,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        color: Colors.black.withOpacity(0.8),
+                        child: Column(
+                          children: [
+                            const CircularProgressIndicator(),
+                            const SizedBox(height: 10),
+                            Text(
+                              _connectionStatus,
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             )
           : const Center(child: Text('需要摄像头权限')),
