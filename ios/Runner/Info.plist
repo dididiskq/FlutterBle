@@ -49,5 +49,9 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>需要相机权限以扫描二维码</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>需要蓝牙权限以连接和管理BMS设备</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>需要蓝牙权限以连接和管理BMS设备</string>
 </dict>
 </plist>

@@ -17,3 +17,24 @@ samples, guidance on mobile development, and a full API reference.
 
 adb connect 192.168.3.52:2213
 adb tcpip 2213
+
+# 使用 FVM 安装（推荐）
+brew tap leoafarias/fvm
+brew install fvm
+fvm install 3.7.12
+fvm use 3.7.12
+
+# 或者直接下载 Flutter 3.7.12
+# 访问: https://docs.flutter.dev/development/tools/sdk/releases
+
+# 从 App Store 安装 Xcode（推荐）
+# 或使用命令行工具
+xcode-select --install
+
+sudo gem install cocoapods
+
+cd ios
+pod install
+cd ..
+
+flutter pub get

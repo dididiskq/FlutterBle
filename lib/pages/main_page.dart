@@ -47,27 +47,27 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
   }
   
   // 电池数据
-  double socValue = 0.0; // SOC百分比（初始值设为50，避免0值导致绘制问题）
-  double totalCurrent = 0.0; // 总电流
-  double totalVoltage = 0.0; // 总电压
-  double totalPower = 0.0; // 总功率
-  double totalCapacity = 0.0; // 总容量
+  late double socValue; // SOC百分比
+  late double totalCurrent; // 总电流
+  late double totalVoltage; // 总电压
+  late double totalPower; // 总功率
+  late double totalCapacity; // 总容量
   
   // 充电状态
-  int chargeStatus = 0;
+  late int chargeStatus;
   //放电状态
-  int dischargeStatus = 0;
+  late int dischargeStatus;
 
 
   // 温度数据
-  double t1Temp = 0.0;
-  double t2Temp = 0.0;
-  double mosTemp = 0.0;
+  late double t1Temp;
+  late double t2Temp;
+  late double mosTemp;
   
   // 异常数据
-  int alarmCount = 0;
-  int cycleCount = 0;
-  double voltageDiff = 0.0;
+  late int alarmCount;
+  late int cycleCount;
+  late double voltageDiff;
   
   // 动画控制器
   late AnimationController _socAnimationController;
@@ -171,37 +171,41 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
   // 从单例中恢复电池数据
   void _restoreBatteryData() {
     final currentData = _batteryDataManager.currentData;
-    if (currentData.isNotEmpty) {
-      print('[MainPage] 恢复电池数据: SOC=${currentData.soc}%, SOH=${currentData.soh}%');
-      
-      // 直接更新数据，不使用动画
-      socValue = currentData.soc.toDouble();
-      totalVoltage = currentData.voltage;
-      totalCurrent = currentData.current;
-      totalCapacity = currentData.capacity;
-      totalPower = currentData.voltage * currentData.current;
-      cycleCount = currentData.cycleCount;
-      
-      // 恢复温度数据 - 使用独立的温度字段
-      t1Temp = currentData.batteryTemperature1;
-      t2Temp = currentData.batteryTemperature2;
-      mosTemp = currentData.batteryTemperatureMos;
-      
-      // 恢复异常警报个数
-      alarmCount = currentData.alarmCount;
-      
-      // 计算压差
-      if (currentData.cellVoltages.isNotEmpty && currentData.cellVoltages.length >= 2) {
-        final maxVoltage = currentData.cellVoltages.reduce((a, b) => a > b ? a : b);
-        final minVoltage = currentData.cellVoltages.reduce((a, b) => a < b ? a : b);
-        voltageDiff = maxVoltage - minVoltage;
-      }
-      
-      // 标记为非首次加载，避免动画重新开始
-      _isFirstLoad = false;
-      
-      print('[MainPage] 数据恢复完成，_isFirstLoad=$_isFirstLoad');
+    print('[MainPage] 恢复电池数据: SOC=${currentData.soc}%, SOH=${currentData.soh}%');
+    
+    // 无论currentData是否为空，都初始化所有变量
+    socValue = currentData.soc.toDouble();
+    totalVoltage = currentData.voltage;
+    totalCurrent = currentData.current;
+    totalCapacity = currentData.capacity;
+    totalPower = currentData.voltage * currentData.current;
+    cycleCount = currentData.cycleCount;
+    
+    // 恢复温度数据 - 使用独立的温度字段
+    t1Temp = currentData.batteryTemperature1;
+    t2Temp = currentData.batteryTemperature2;
+    mosTemp = currentData.batteryTemperatureMos;
+    
+    // 恢复充放电状态
+    chargeStatus = currentData.chargeStatus;
+    dischargeStatus = currentData.dischargeStatus;
+    
+    // 恢复异常警报个数
+    alarmCount = currentData.alarmCount;
+    
+    // 计算压差
+    if (currentData.cellVoltages.isNotEmpty && currentData.cellVoltages.length >= 2) {
+      final maxVoltage = currentData.cellVoltages.reduce((a, b) => a > b ? a : b);
+      final minVoltage = currentData.cellVoltages.reduce((a, b) => a < b ? a : b);
+      voltageDiff = maxVoltage - minVoltage;
+    } else {
+      voltageDiff = 0.0;
     }
+    
+    // 标记为非首次加载，避免动画重新开始
+    _isFirstLoad = false;
+    
+    print('[MainPage] 数据恢复完成，_isFirstLoad=$_isFirstLoad');
   }
   
   @override

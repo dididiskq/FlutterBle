@@ -139,12 +139,6 @@ class _ScanPageState extends State<ScanPage> {
     try {
       // 解析二维码内容
       final parts = result.split('|');
-      // if (parts.length != 2) {
-      //   throw Exception('二维码格式错误');
-      // }
-      
-      // final mac = parts[0];
-      // final uuid = parts[1];
       
       // 显示请稍后提示
       if (mounted) {
@@ -153,24 +147,69 @@ class _ScanPageState extends State<ScanPage> {
         });
       }
       
-      // 根据平台选择设备ID
-      final deviceId = Platform.isAndroid ? parts[0] : parts[1];
-      final deviceName = '扫码连接设备';
-      
-      print('[ScanPage] 设备ID: $deviceId');
-      print('[ScanPage] 设备名称: $deviceName');
-      
       // 获取BleController单例实例
       final bleController = BleController();
+      String deviceId;
+      String deviceName;
       
-      // 连接设备
-      await bleController.connectToDevice(deviceId, deviceName: deviceName);
+      // 根据平台和二维码格式选择连接策略
+      if (Platform.isAndroid) {
+        // Android平台
+        deviceId = parts[0];
+        
+        if (parts.length > 1) {
+          // 第二种二维码：mac|name格式
+          deviceName = parts[1];
+          
+          print('[ScanPage] Android连接 - 设备ID: $deviceId, 设备名称: $deviceName');
+          
+          // 直接连接设备
+          await bleController.connectToDevice(deviceId, deviceName: deviceName);
+        } else {
+          // 第一种二维码：只有mac地址，需要先扫描获取设备实际名称
+          print('[ScanPage] Android连接 - 旧二维码，正在扫描设备，获取实际名称');
+          
+          // 更新连接状态提示
+          if (mounted) {
+            setState(() {
+              _connectionStatus = '正在扫描设备，获取名称...';
+            });
+          }
+          
+          // 扫描设备，查找匹配mac地址的设备
+          deviceName = await _scanDeviceAndGetName(deviceId);
+          
+          print('[ScanPage] Android连接 - 设备ID: $deviceId, 实际设备名称: $deviceName');
+          
+          // 连接设备
+          await bleController.connectToDevice(deviceId, deviceName: deviceName);
+        }
+      } else {
+        // iOS平台：需要根据二维码格式处理
+        if (parts.length == 1) {
+          // 第一种二维码：只有mac地址，iOS无法直接连接
+          throw Exception('iOS设备不支持仅包含MAC地址的二维码');
+        } else {
+          // 第二种二维码：mac|name格式
+          final expectedName = parts[1];
+          deviceName = expectedName;
+          
+          print('[ScanPage] iOS连接 - 正在扫描设备，匹配名称: $expectedName');
+          
+          // 扫描并查找匹配名称的设备
+          deviceId = await bleController.scanAndFindDeviceByName(expectedName);
+          
+          print('[ScanPage] iOS连接 - 匹配成功，设备ID: $deviceId');
+          
+          // 连接设备
+          await bleController.connectToDevice(deviceId, deviceName: deviceName);
+        }
+      }
       
       // 检查页面是否仍在挂载状态
       if (!mounted) return;
       
-      // 连接成功，自动返回首页
-      // 与设备列表连接行为保持一致，返回首页后会自动开始读取数据
+      // 连接成功，自动返回首页，传递实际设备名称
       Navigator.pop(context, deviceName);
       
     } catch (e) {
@@ -197,6 +236,61 @@ class _ScanPageState extends State<ScanPage> {
         _scanResult = null;
         _connectionStatus = '';
       });
+    }
+  }
+  
+  /// 扫描设备并根据mac地址获取设备名称
+  Future<String> _scanDeviceAndGetName(String macAddress, {Duration timeout = const Duration(seconds: 5)}) async {
+    print('[ScanPage] 开始扫描设备，获取MAC地址为 $macAddress 的设备名称，超时时间: ${timeout.inSeconds}秒');
+    
+    final Completer<String> completer = Completer<String>();
+    StreamSubscription<DiscoveredDevice>? subscription;
+    Timer? timeoutTimer;
+    
+    try {
+      // 开始扫描
+      subscription = FlutterReactiveBle().scanForDevices(
+        withServices: [], // 扫描所有设备
+        scanMode: ScanMode.lowLatency, // 快速扫描
+      ).listen((device) {
+        print('[ScanPage] 扫描到设备: ${device.name}, ID: ${device.id}');
+        
+        // 检查设备ID是否匹配mac地址（Android设备ID通常是mac地址）
+        if (device.id.toLowerCase() == macAddress.toLowerCase()) {
+          String actualName = device.name.isNotEmpty ? device.name : '未知设备';
+          print('[ScanPage] 找到匹配设备: MAC=$macAddress, 名称: $actualName');
+          
+          // 取消超时计时器
+          timeoutTimer?.cancel();
+          
+          // 完成并返回实际设备名称
+          if (!completer.isCompleted) {
+            completer.complete(actualName);
+          }
+        }
+      }, onError: (error) {
+        print('[ScanPage] 扫描设备时发生错误: $error');
+        if (!completer.isCompleted) {
+          completer.completeError(Exception('扫描设备失败: $error'));
+        }
+      });
+      
+      // 设置超时，超时后返回默认名称
+      timeoutTimer = Timer(timeout, () {
+        print('[ScanPage] 扫描设备超时，使用默认设备名称');
+        if (!completer.isCompleted) {
+          // 超时后使用mac地址作为设备名称
+          completer.complete(macAddress);
+        }
+      });
+      
+      // 等待结果
+      return await completer.future;
+    } finally {
+      // 清理资源
+      subscription?.cancel();
+      timeoutTimer?.cancel();
+      print('[ScanPage] 扫描设备流程结束');
     }
   }
 

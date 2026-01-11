@@ -308,6 +308,60 @@ class BleController {
     );
   }
 
+  /// 扫描并根据设备名称查找设备
+  /// 返回匹配到的设备ID（uuid），超时时间5秒
+  Future<String> scanAndFindDeviceByName(String expectedName, {Duration timeout = const Duration(seconds: 5)}) async {
+    print('[BleController] 开始扫描设备，匹配名称: $expectedName，超时时间: ${timeout.inSeconds}秒');
+    
+    final Completer<String> completer = Completer<String>();
+    StreamSubscription<DiscoveredDevice>? subscription;
+    Timer? timeoutTimer;
+    
+    try {
+      // 开始扫描
+      subscription = _ble.scanForDevices(
+        withServices: [], // 扫描所有设备
+        scanMode: ScanMode.lowLatency, // 快速扫描
+      ).listen((device) {
+        print('[BleController] 扫描到设备: ${device.name}, ID: ${device.id}');
+        
+        // 匹配设备名称（忽略大小写）
+        if (device.name.toLowerCase() == expectedName.toLowerCase()) {
+          print('[BleController] 找到匹配设备: ${device.name}, ID: ${device.id}');
+          
+          // 取消超时计时器
+          timeoutTimer?.cancel();
+          
+          // 完成并返回设备ID
+          if (!completer.isCompleted) {
+            completer.complete(device.id);
+          }
+        }
+      }, onError: (error) {
+        print('[BleController] 扫描设备时发生错误: $error');
+        if (!completer.isCompleted) {
+          completer.completeError(Exception('扫描设备失败: $error'));
+        }
+      });
+      
+      // 设置超时
+      timeoutTimer = Timer(timeout, () {
+        print('[BleController] 扫描设备超时，未找到匹配名称的设备: $expectedName');
+        if (!completer.isCompleted) {
+          completer.completeError(Exception('扫描设备超时，未找到匹配名称的设备'));
+        }
+      });
+      
+      // 等待结果
+      return await completer.future;
+    } finally {
+      // 清理资源
+      subscription?.cancel();
+      timeoutTimer?.cancel();
+      print('[BleController] 扫描设备流程结束');
+    }
+  }
+
   /// 停止扫描蓝牙设备
   Future<void> stopScan() async {
     // flutter_reactive_ble会自动管理扫描停止
