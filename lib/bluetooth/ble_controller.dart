@@ -712,6 +712,34 @@ class BleController {
     }
   }
 
+  /// 断开当前连接的设备
+  Future<void> disconnect() async {
+    if (_connectedDevice != null) {
+      await disconnectFromDevice(_connectedDevice!.id);
+    }
+  }
+  
+  /// 重连到镜像更新设备（单 Bank 升级使用）
+  /// 参考Java代码：重连新地址（MAC+1）
+  Future<void> reconnectToImageUpdate(String newMacAddress) async {
+    print('[BLE] 开始重连到镜像更新设备，新MAC地址: $newMacAddress');
+    
+    // 重置状态
+    _discoveredService = null;
+    _commandCharacteristic = null;
+    _dataCharacteristic = null;
+    
+    // 等待一段时间确保设备已重启
+    await Future.delayed(const Duration(seconds: 1));
+    
+    // 连接到新MAC地址
+    await connectToDevice(newMacAddress);
+    
+    // 切换到OTA模式
+    await enableOtaMode();
+    
+    print('[BLE] 重连到镜像更新设备成功，新MAC地址: $newMacAddress');
+  }
   /// 断开蓝牙设备连接
   Future<void> disconnectFromDevice(String deviceId) async {
     try {
@@ -725,7 +753,6 @@ class BleController {
       
       // 调用flutter_reactive_ble库的disconnect方法主动断开连接
       // flutter_reactive_ble 没有提供直接的 disconnectDevice 方法，取消连接流订阅即可触发底层断开
-      // 已在上面调用 _connectionSubscription?.cancel(); 完成断开，无需额外调用
       print('[BLE] ★★★ 已调用库的disconnect方法');
       
       // 清理通知订阅
@@ -752,10 +779,11 @@ class BleController {
         connectionState: DeviceConnectionState.disconnected,
         failure: null,
       ));
+      _currentConnectionState = DeviceConnectionState.disconnected;
       
-      print('[BLE] ==================== 断开连接完成 ====================');
+      print('[BLE] ==================== 设备断开完成 ====================');
     } catch (e) {
-      print('[BLE] ★★★ 断开连接失败: $e');
+      print('[BLE] 断开设备连接失败: $e');
       rethrow;
     }
   }
@@ -848,24 +876,57 @@ class BleController {
   }
 
   /// 写入OTA数据到数据传输特征 (ius_rc: 11110002)
-  /// 数据传输使用writeWithoutResponse提高效率
+  /// 数据传输使用 writeWithoutResponse 提高效率
+  /// 自动处理大数据分块，确保不超过MTU限制
   Future<void> writeOtaData(Uint8List data) async {
     ensureConnected();
-    
+  
     if (_dataCharacteristic == null) {
       throw Exception('未找到数据传输特征，请先连接设备');
     }
-
+  
     try {
       print('[BLE] 写入OTA数据到数据传输特征: ${_dataCharacteristic!.characteristicId}');
-      print('[BLE] 数据长度: ${data.length} bytes');
+      print('[BLE] 总数据长度: ${data.length} bytes');
+  
+      // BLE MTU 通常为 247 字节，减去 3 字节 L2CAP 开销，实际可用 244 字节
+      // 为安全起见，使用 200 字节作为最大块大小
+      const int maxChunkSize = 200;
       
-      // 数据传输使用writeWithoutResponse提高效率
-      await _ble.writeCharacteristicWithoutResponse(
-        _dataCharacteristic!,
-        value: data,
-      );
-      print('[BLE] OTA数据写入成功 (writeWithoutResponse)');
+      // 如果数据较小，直接发送
+      if (data.length <= maxChunkSize) {
+        // 使用 writeWithoutResponse 提高吞吐效率
+        await _ble.writeCharacteristicWithoutResponse(
+          _dataCharacteristic!,
+          value: data,
+        );
+        print('[BLE] OTA数据写入成功 (writeWithoutResponse)，单块发送');
+      } else {
+        // 大数据分块发送
+        print('[BLE] 开始分块发送OTA数据，每块最大 $maxChunkSize 字节');
+        
+        int offset = 0;
+        int totalChunks = (data.length + maxChunkSize - 1) ~/ maxChunkSize;
+        
+        while (offset < data.length) {
+          final int remaining = data.length - offset;
+          final int chunkSize = remaining > maxChunkSize ? maxChunkSize : remaining;
+          
+          final Uint8List chunk = Uint8List.view(data.buffer, offset, chunkSize);
+          
+          await _ble.writeCharacteristicWithoutResponse(
+            _dataCharacteristic!,
+            value: chunk,
+          );
+          
+          offset += chunkSize;
+          
+          // 小延迟防止BLE栈过载
+          await Future.delayed(const Duration(microseconds: 500));
+        }
+        
+        print('[BLE] OTA数据写入成功 (writeWithoutResponse)，分 $totalChunks 块发送');
+      }
     } catch (e) {
       print('[BLE] 写入OTA数据失败: $e');
       rethrow;

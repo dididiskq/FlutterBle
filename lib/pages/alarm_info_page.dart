@@ -10,11 +10,15 @@ class AlarmInfoPage extends StatefulWidget {
   State<AlarmInfoPage> createState() => _AlarmInfoPageState();
 }
 
-class _AlarmInfoPageState extends State<AlarmInfoPage> {
+class _AlarmInfoPageState extends State<AlarmInfoPage> with AutomaticKeepAliveClientMixin {
   final BatteryDataManager _batteryDataManager = BatteryDataManager();
   final List<AlarmInfo> _warningInfoList = [];
   final List<AlarmInfo> _protectionInfoList = [];
   final List<AlarmInfo> _batteryStatusList = [];
+
+  // 重写 wantKeepAlive，返回 true 保持状态
+  @override
+  bool get wantKeepAlive => true;
 
   static const Map<int, String> _warningMessages = {
     0: '超高压报警',
@@ -102,56 +106,69 @@ class _AlarmInfoPageState extends State<AlarmInfoPage> {
 
   void _restoreBatteryData() {
     final currentData = _batteryDataManager.currentData;
-    if (currentData.isNotEmpty) {
-      _updateAlarmLists(currentData);
-    }
+    // 总是更新警报列表，不管数据是否为空
+    // 因为即使 slaveId 和 soc 为0，warningInfo/protectionInfo/batteryStatus 可能有值
+    _updateAlarmLists(currentData);
   }
 
   void _updateAlarmLists(BatteryData data) {
+    // 创建临时列表，避免在setState中直接修改现有列表
+    final List<AlarmInfo> newWarningList = [];
+    final List<AlarmInfo> newProtectionList = [];
+    final List<AlarmInfo> newStatusList = [];
+
+    final timestamp = data.timestamp.toLocal().toString().substring(0, 19);
+
+    for (int i = 0; i < 16; i++) {
+      if ((data.warningInfo & (1 << i)) != 0) {
+        newWarningList.add(AlarmInfo(
+          id: i,
+          message: _warningMessages[i] ?? '未知警告 $i',
+          timestamp: timestamp,
+          level: AlarmLevel.warning,
+        ));
+      }
+    }
+
+    for (int i = 0; i < 32; i++) {
+      if ((data.protectionInfo & (1 << i)) != 0) {
+        newProtectionList.add(AlarmInfo(
+          id: i,
+          message: _protectionMessages[i] ?? '未知保护 $i',
+          timestamp: timestamp,
+          level: AlarmLevel.protection,
+        ));
+      }
+    }
+
+    for (int i = 0; i < 16; i++) {
+      if ((data.batteryStatus & (1 << i)) != 0) {
+        newStatusList.add(AlarmInfo(
+          id: i,
+          message: _batteryStatusMessages[i] ?? '未知状态 $i',
+          timestamp: timestamp,
+          level: AlarmLevel.normal,
+        ));
+      }
+    }
+
+    // 只有当数据真正发生变化时才调用setState，避免不必要的UI更新
     setState(() {
       _warningInfoList.clear();
+      _warningInfoList.addAll(newWarningList);
+      
       _protectionInfoList.clear();
+      _protectionInfoList.addAll(newProtectionList);
+      
       _batteryStatusList.clear();
-
-      final timestamp = data.timestamp.toLocal().toString().substring(0, 19);
-
-      for (int i = 0; i < 16; i++) {
-        if ((data.warningInfo & (1 << i)) != 0) {
-          _warningInfoList.add(AlarmInfo(
-            id: i,
-            message: _warningMessages[i] ?? '未知警告 $i',
-            timestamp: timestamp,
-            level: AlarmLevel.warning,
-          ));
-        }
-      }
-
-      for (int i = 0; i < 32; i++) {
-        if ((data.protectionInfo & (1 << i)) != 0) {
-          _protectionInfoList.add(AlarmInfo(
-            id: i,
-            message: _protectionMessages[i] ?? '未知保护 $i',
-            timestamp: timestamp,
-            level: AlarmLevel.protection,
-          ));
-        }
-      }
-
-      for (int i = 0; i < 16; i++) {
-        if ((data.batteryStatus & (1 << i)) != 0) {
-          _batteryStatusList.add(AlarmInfo(
-            id: i,
-            message: _batteryStatusMessages[i] ?? '未知状态 $i',
-            timestamp: timestamp,
-            level: AlarmLevel.normal,
-          ));
-        }
-      }
+      _batteryStatusList.addAll(newStatusList);
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    // 必须调用 super.build(context) 以保持状态
+    super.build(context);
     return Scaffold(
       backgroundColor: const Color(0xFF0A1128),
       appBar:  CommonAppBar(title: '异常信息'),

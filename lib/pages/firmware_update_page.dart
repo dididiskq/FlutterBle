@@ -25,7 +25,7 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
   String _upgradeMessage = '就绪';
   
   // 服务器地址
-  static const String BASE_URL = "http://192.168.43.34:8000";
+  static const String BASE_URL = "http://10.226.144.227:8000";
   
   // 固件信息
   String _firmwareVersion = 'V1.0.0'; 
@@ -304,11 +304,7 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
               const SizedBox(height: 30.0),
               
               // 升级状态和进度
-              _buildUpgradeStatus(),
-              const SizedBox(height: 20.0),
-              _buildProgressBar(),
-              const SizedBox(height: 10.0),
-              _buildUpgradeMessage(),
+              _buildOtaStatus(),
               
               const SizedBox(height: 30.0),
               
@@ -467,8 +463,11 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
     );
   }
   
-  // 构建升级状态
-  Widget _buildUpgradeStatus() {
+  // 构建统一的OTA状态组件
+  // 合并升级状态、进度条和升级消息为一个组件
+  // 进度条仅在升级进行中显示
+  Widget _buildOtaStatus() {
+    // 确定状态文本和颜色
     String statusText = '';
     Color statusColor = Colors.grey;
     
@@ -499,6 +498,10 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
         break;
     }
     
+    // 只有在升级或下载时才显示进度条
+    bool showProgressBar = _upgradeStatus == UpgradeStatus.upgrading || 
+                          _upgradeStatus == UpgradeStatus.downloading;
+    
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -507,64 +510,48 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
         border: Border.all(color: const Color(0xFF3A475E), width: 1),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text('升级状态:', style: TextStyle(color: Colors.white, fontSize: 16.0)),
-          Text(statusText, style: TextStyle(color: statusColor, fontSize: 16.0, fontWeight: FontWeight.bold)),
-        ],
-      ),
-    );
-  }
-  
-  // 构建进度条
-  Widget _buildProgressBar() {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A2332),
-        borderRadius: BorderRadius.circular(10.0),
-        border: Border.all(color: const Color(0xFF3A475E), width: 1),
-      ),
-      padding: const EdgeInsets.all(16.0),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 升级状态行
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('升级进度:', style: TextStyle(color: Colors.white, fontSize: 16.0)),
-              Text('$_upgradeProgress%', style: const TextStyle(color: Colors.white, fontSize: 16.0)),
+              const Text('升级状态:', style: TextStyle(color: Colors.white, fontSize: 16.0)),
+              Text(statusText, style: TextStyle(color: statusColor, fontSize: 16.0, fontWeight: FontWeight.bold)),
             ],
           ),
-          const SizedBox(height: 10.0),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4.0),
-            child: LinearProgressIndicator(
-              value: _upgradeProgress / 100,
-              backgroundColor: const Color(0xFF3A475E),
-              valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
-              minHeight: 8.0,
+          
+          // 条件显示的进度条
+          if (showProgressBar) ...[
+            const SizedBox(height: 20.0),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('升级进度:', style: TextStyle(color: Colors.white, fontSize: 16.0)),
+                Text('$_upgradeProgress%', style: const TextStyle(color: Colors.white, fontSize: 16.0)),
+              ],
             ),
+            const SizedBox(height: 10.0),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4.0),
+              child: LinearProgressIndicator(
+                value: _upgradeProgress / 100,
+                backgroundColor: const Color(0xFF3A475E),
+                valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
+                minHeight: 8.0,
+              ),
+            ),
+          ],
+          
+          // 升级消息
+          const SizedBox(height: 10.0),
+          Text(
+            _upgradeMessage,
+            style: const TextStyle(color: Colors.white, fontSize: 16.0),
+            textAlign: TextAlign.center,
           ),
         ],
-      ),
-    );
-  }
-  
-  // 构建升级消息
-  Widget _buildUpgradeMessage() {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A2332),
-        borderRadius: BorderRadius.circular(10.0),
-        border: Border.all(color: const Color(0xFF3A475E), width: 1),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
-      child: Text(
-        _upgradeMessage,
-        style: const TextStyle(color: Colors.white, fontSize: 16.0),
-        textAlign: TextAlign.center,
       ),
     );
   }
