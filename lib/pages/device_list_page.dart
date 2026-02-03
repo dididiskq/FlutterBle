@@ -256,13 +256,47 @@ class _DeviceListPageState extends State<DeviceListPage> {
   Future<void> _disconnectConnectedDevice() async {
     if (_connectedDevice == null) return;
     
+    final deviceId = _connectedDevice!.id;
+    final deviceName = _connectedDevice!.name;
+    
     try {
-      await _bleController.disconnectFromDevice(_connectedDevice!.id);
-    } catch (error) {
+      // 显示断开连接中状态
+      setState(() {
+        _connectedDevice!.isConnecting = true;
+      });
+      
+      // 断开连接
+      await _bleController.disconnectFromDevice(deviceId);
+      
+      // 显示断开成功反馈
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('断开失败: $error')),
+          SnackBar(
+            content: Text('已成功断开 $deviceName'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
         );
+      });
+    } catch (error) {
+      print('[DeviceListPage] 断开失败: $error');
+      
+      // 显示断开失败反馈
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('断开失败: $error'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      });
+    } finally {
+      // 更新UI状态
+      setState(() {
+        if (_connectedDevice != null) {
+          _connectedDevice!.isConnecting = false;
+        }
       });
     }
   }

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../components/common_app_bar.dart';
 import '../managers/battery_data_manager.dart';
 import '../models/battery_data.dart';
+import '../managers/language_manager.dart';
 
 class AlarmInfoPage extends StatefulWidget {
   const AlarmInfoPage({super.key});
@@ -169,29 +171,33 @@ class _AlarmInfoPageState extends State<AlarmInfoPage> with AutomaticKeepAliveCl
   Widget build(BuildContext context) {
     // 必须调用 super.build(context) 以保持状态
     super.build(context);
-    return Scaffold(
-      backgroundColor: const Color(0xFF0A1128),
-      appBar:  CommonAppBar(title: '异常信息'),
-      body: Container(
-        color: const Color(0xFF0A1128),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildSection('警告信息', _warningInfoList, Colors.orange),
-              const SizedBox(height: 20),
-              _buildSection('保护信息', _protectionInfoList, Colors.red),
-              const SizedBox(height: 20),
-              _buildSection('电池状态', _batteryStatusList, Colors.green),
-            ],
+    return Consumer<LanguageManager>(
+      builder: (context, languageManager, child) {
+        return Scaffold(
+          backgroundColor: const Color(0xFF0A1128),
+          appBar:  CommonAppBar(title: languageManager.alarmInfoPageTitle),
+          body: Container(
+            color: const Color(0xFF0A1128),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSection(languageManager.warningInfoTitle, _warningInfoList, Colors.orange, languageManager),
+                  const SizedBox(height: 20),
+                  _buildSection(languageManager.protectionInfoTitle, _protectionInfoList, Colors.red, languageManager),
+                  const SizedBox(height: 20),
+                  _buildSection(languageManager.batteryStatusTitle, _batteryStatusList, Colors.green, languageManager),
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildSection(String title, List<AlarmInfo> items, Color titleColor) {
+  Widget _buildSection(String title, List<AlarmInfo> items, Color titleColor, LanguageManager languageManager) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -220,10 +226,10 @@ class _AlarmInfoPageState extends State<AlarmInfoPage> with AutomaticKeepAliveCl
             border: Border.all(color: const Color(0xFF3A475E), width: 1),
           ),
           child: items.isEmpty
-              ? const Center(
+              ? Center(
                   child: Text(
-                    '无异常信息',
-                    style: TextStyle(
+                    languageManager.noAlarmInfo,
+                    style: const TextStyle(
                       color: Colors.white70,
                       fontSize: 14,
                     ),
@@ -296,6 +302,7 @@ class _AlarmInfoPageState extends State<AlarmInfoPage> with AutomaticKeepAliveCl
   }
 
   Color _getColorForLevel(AlarmLevel level) {
+    return Colors.white;
     switch (level) {
       case AlarmLevel.warning:
         return Colors.orange;

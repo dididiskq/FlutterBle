@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../components/common_app_bar.dart';
 import '../components/operation_confirm_dialog.dart';
 import '../managers/battery_data_manager.dart';
+import '../managers/language_manager.dart';
 
 class BmsControlPage extends StatefulWidget {
   const BmsControlPage({super.key});
@@ -71,205 +73,124 @@ class _BmsControlPageState extends State<BmsControlPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0A1128),
-      appBar: CommonAppBar(title: '设备控制'),
-      body: Container(
-        color: const Color(0xFF0A1128),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 系统控制按钮组
-              _buildControlButton('系统关机', () async {
-                final confirmed = await OperationConfirmDialog.show(
-                  context,
-                  title: '确认系统关机',
-                  operationName: '系统关机',
-                );
-                
-                if (confirmed && mounted) {
-                  final success = await _batteryDataManager.writeParameters(0x0001, [0]);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(success ? '系统关机成功' : '系统关机失败'),
-                        backgroundColor: success ? Colors.green : Colors.red,
-                      ),
-                    );
-                  }
-                }
-              }),
-              _buildControlButton('恢复出厂', () async {
-                final confirmed = await OperationConfirmDialog.show(
-                  context,
-                  title: '确认恢复出厂',
-                  operationName: '恢复出厂设置',
-                );
-                
-                if (confirmed && mounted) {
-                  final success = await _batteryDataManager.writeParameters(0x0002, [0]);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(success ? '恢复出厂成功' : '恢复出厂失败'),
-                        backgroundColor: success ? Colors.green : Colors.red,
-                      ),
-                    );
-                  }
-                }
-              }),
-              _buildControlButton('重启系统', () async {
-                final confirmed = await OperationConfirmDialog.show(
-                  context,
-                  title: '确认重启系统',
-                  operationName: '重启系统',
-                );
-                
-                if (confirmed && mounted) {
-                  final success = await _batteryDataManager.writeParameters(0x0000, [0]);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(success ? '重启系统成功' : '重启系统失败'),
-                        backgroundColor: success ? Colors.green : Colors.red,
-                      ),
-                    );
-                  }
-                }
-              }),
-              _buildControlButton('切换为英文', () async {
-                // TODO: 实现语言切换逻辑
-              }),
-              const SizedBox(height: 20.0),
-              
-              // 弱电开关
-              _buildSwitchRow('弱电开关', _weakPowerSwitch, (value) async {
-                final confirmed = await OperationConfirmDialog.show(
-                  context,
-                  title: '确认切换弱电开关',
-                  operationName: value ? '开启弱电开关' : '关闭弱电开关',
-                );
-                
-                if (confirmed && mounted) {
-                  int newValue;
-                  if (value) {
-                    newValue = _switchConfigValue | 0x01;
-                  } else {
-                    newValue = _switchConfigValue & ~0x01;
-                  }
-                  
-                  final success = await _batteryDataManager.writeParameters(0x205, [newValue]);
-                  
-                  if (success && mounted) {
-                    setState(() {
-                      _switchConfigValue = newValue;
-                      _weakPowerSwitch = value;
-                    });
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(value ? '弱电开关已开启' : '弱电开关已关闭'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
-                  } else if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('操作失败'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                }
-              }),
-              const SizedBox(height: 20.0),
-              
-              // 充电放电控制
-              Column(
+    return Consumer<LanguageManager>(
+      builder: (context, languageManager, child) {
+        return Scaffold(
+          backgroundColor: const Color(0xFF0A1128),
+          appBar: CommonAppBar(title: languageManager.deviceControlPageTitle),
+          body: Container(
+            color: const Color(0xFF0A1128),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 强制充电控制
-                  Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1A2332),
-                      borderRadius: BorderRadius.circular(10.0),
-                      border: Border.all(color: const Color(0xFF3A475E), width: 1),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            '强制充电控制',
-                            style: const TextStyle(color: Colors.white, fontSize: 16.0),
-                          ),
-                        ),
-                        Switch(
-                          value: _forceChargeSwitch,
-                          onChanged: (value) async {
-                            final confirmed = await OperationConfirmDialog.show(
-                              context,
-                              title: '确认切换强制充电控制',
-                              operationName: value ? '开启强制充电控制' : '关闭强制充电控制',
-                            );
-                            
-                            if (confirmed && mounted) {
-                              final address = value ? 0x0006 : 0x0007;
-                              final success = await _batteryDataManager.writeParameters(address, [0]);
-                              
-                              if (success && mounted) {
-                                setState(() {
-                                  _forceChargeSwitch = value;
-                                });
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(value ? '强制充电控制已开启' : '强制充电控制已关闭'),
-                                    backgroundColor: Colors.green,
-                                  ),
-                                );
-                              } else if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('操作失败'),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                          activeColor: Colors.blue,
-                          inactiveTrackColor: const Color(0xFF3A475E),
-                          inactiveThumbColor: Colors.grey,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8.0),
-                  
-                  // 取消强制充电按钮
-                  _buildControlButton('取消强制充电', () async {
+                  // 系统控制按钮组
+                  _buildControlButton(languageManager.systemShutdownText, () async {
                     final confirmed = await OperationConfirmDialog.show(
                       context,
-                      title: '确认取消强制充电',
-                      operationName: '取消强制充电',
+                      title: languageManager.isChinese ? '确认系统关机' : 'Confirm System Shutdown',
+                      operationName: languageManager.systemShutdownText,
                     );
                     
                     if (confirmed && mounted) {
-                      final success = await _batteryDataManager.writeParameters(0x0008, [0]);
+                      final success = await _batteryDataManager.writeParameters(0x0001, [0]);
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(languageManager.isChinese 
+                              ? (success ? '系统关机成功' : '系统关机失败') 
+                              : (success ? 'System shutdown success' : 'System shutdown failed')),
+                            backgroundColor: success ? Colors.green : Colors.red,
+                          ),
+                        );
+                      }
+                    }
+                  }),
+                  _buildControlButton(languageManager.restoreFactoryText, () async {
+                    final confirmed = await OperationConfirmDialog.show(
+                      context,
+                      title: languageManager.isChinese ? '确认恢复出厂' : 'Confirm Restore Factory',
+                      operationName: languageManager.isChinese ? '恢复出厂设置' : 'Restore Factory Settings',
+                    );
+                    
+                    if (confirmed && mounted) {
+                      final success = await _batteryDataManager.writeParameters(0x0002, [0]);
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(languageManager.isChinese 
+                              ? (success ? '恢复出厂成功' : '恢复出厂失败') 
+                              : (success ? 'Restore factory success' : 'Restore factory failed')),
+                            backgroundColor: success ? Colors.green : Colors.red,
+                          ),
+                        );
+                      }
+                    }
+                  }),
+                  _buildControlButton(languageManager.restartSystemText, () async {
+                    final confirmed = await OperationConfirmDialog.show(
+                      context,
+                      title: languageManager.isChinese ? '确认重启系统' : 'Confirm Restart System',
+                      operationName: languageManager.restartSystemText,
+                    );
+                    
+                    if (confirmed && mounted) {
+                      final success = await _batteryDataManager.writeParameters(0x0000, [0]);
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(languageManager.isChinese 
+                              ? (success ? '重启系统成功' : '重启系统失败') 
+                              : (success ? 'Restart system success' : 'Restart system failed')),
+                            backgroundColor: success ? Colors.green : Colors.red,
+                          ),
+                        );
+                      }
+                    }
+                  }),
+                  _buildControlButton(languageManager.toggleLanguageButtonText, () {
+                    languageManager.toggleLanguage();
+                  }),
+                  const SizedBox(height: 20.0),
+                  
+                  // 弱电开关
+                  _buildSwitchRow(languageManager.weakPowerSwitchText, _weakPowerSwitch, (value) async {
+                    final confirmed = await OperationConfirmDialog.show(
+                      context,
+                      title: languageManager.isChinese ? '确认切换弱电开关' : 'Confirm Toggle Weak Power Switch',
+                      operationName: languageManager.isChinese 
+                        ? (value ? '开启弱电开关' : '关闭弱电开关') 
+                        : (value ? 'Turn on weak power switch' : 'Turn off weak power switch'),
+                    );
+                    
+                    if (confirmed && mounted) {
+                      int newValue;
+                      if (value) {
+                        newValue = _switchConfigValue | 0x01;
+                      } else {
+                        newValue = _switchConfigValue & ~0x01;
+                      }
+                      
+                      final success = await _batteryDataManager.writeParameters(0x205, [newValue]);
                       
                       if (success && mounted) {
-                        await _readControlFlags();
+                        setState(() {
+                          _switchConfigValue = newValue;
+                          _weakPowerSwitch = value;
+                        });
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('已取消强制充电'),
+                          SnackBar(
+                            content: Text(languageManager.isChinese 
+                              ? (value ? '弱电开关已开启' : '弱电开关已关闭') 
+                              : (value ? 'Weak power switch on' : 'Weak power switch off')),
                             backgroundColor: Colors.green,
                           ),
                         );
                       } else if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('操作失败'),
+                          SnackBar(
+                            content: Text(languageManager.isChinese ? '操作失败' : 'Operation failed'),
                             backgroundColor: Colors.red,
                           ),
                         );
@@ -278,100 +199,203 @@ class _BmsControlPageState extends State<BmsControlPage> {
                   }),
                   const SizedBox(height: 20.0),
                   
-                  // 强制放电控制
-                  Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1A2332),
-                      borderRadius: BorderRadius.circular(10.0),
-                      border: Border.all(color: const Color(0xFF3A475E), width: 1),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            '强制放电控制',
-                            style: const TextStyle(color: Colors.white, fontSize: 16.0),
-                          ),
+                  // 充电放电控制
+                  Column(
+                    children: [
+                      // 强制充电控制
+                      Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1A2332),
+                          borderRadius: BorderRadius.circular(10.0),
+                          border: Border.all(color: const Color(0xFF3A475E), width: 1),
                         ),
-                        Switch(
-                          value: _forceDischargeSwitch,
-                          onChanged: (value) async {
-                            final confirmed = await OperationConfirmDialog.show(
-                              context,
-                              title: '确认切换强制放电控制',
-                              operationName: value ? '开启强制放电控制' : '关闭强制放电控制',
-                            );
-                            
-                            if (confirmed && mounted) {
-                              final address = value ? 0x0003 : 0x0004;
-                              final success = await _batteryDataManager.writeParameters(address, [0]);
-                              
-                              if (success && mounted) {
-                                setState(() {
-                                  _forceDischargeSwitch = value;
-                                });
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(value ? '强制放电控制已开启' : '强制放电控制已关闭'),
-                                    backgroundColor: Colors.green,
-                                  ),
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                languageManager.forceChargeControlText,
+                                style: const TextStyle(color: Colors.white, fontSize: 16.0),
+                              ),
+                            ),
+                            Switch(
+                              value: _forceChargeSwitch,
+                              onChanged: (value) async {
+                                final confirmed = await OperationConfirmDialog.show(
+                                  context,
+                                  title: languageManager.isChinese ? '确认切换强制充电控制' : 'Confirm Toggle Force Charge Control',
+                                  operationName: languageManager.isChinese 
+                                    ? (value ? '开启强制充电控制' : '关闭强制充电控制') 
+                                    : (value ? 'Turn on force charge control' : 'Turn off force charge control'),
                                 );
-                              } else if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('操作失败'),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                          activeColor: Colors.blue,
-                          inactiveTrackColor: const Color(0xFF3A475E),
-                          inactiveThumbColor: Colors.grey,
+                                
+                                if (confirmed && mounted) {
+                                  final address = value ? 0x0006 : 0x0007;
+                                  final success = await _batteryDataManager.writeParameters(address, [0]);
+                                  
+                                  if (success && mounted) {
+                                    setState(() {
+                                      _forceChargeSwitch = value;
+                                    });
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(languageManager.isChinese 
+                                          ? (value ? '强制充电控制已开启' : '强制充电控制已关闭') 
+                                          : (value ? 'Force charge control on' : 'Force charge control off')),
+                                        backgroundColor: Colors.green,
+                                      ),
+                                    );
+                                  } else if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(languageManager.isChinese ? '操作失败' : 'Operation failed'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                              activeColor: Colors.blue,
+                              inactiveTrackColor: const Color(0xFF3A475E),
+                              inactiveThumbColor: Colors.grey,
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8.0),
-                  
-                  // 取消强制放电按钮
-                  _buildControlButton('取消强制放电', () async {
-                    final confirmed = await OperationConfirmDialog.show(
-                      context,
-                      title: '确认取消强制放电',
-                      operationName: '取消强制放电',
-                    );
-                    
-                    if (confirmed && mounted) {
-                      final success = await _batteryDataManager.writeParameters(0x0005, [0]);
+                      ),
+                      const SizedBox(height: 8.0),
                       
-                      if (success && mounted) {
-                        await _readControlFlags();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('已取消强制放电'),
-                            backgroundColor: Colors.green,
-                          ),
+                      // 取消强制充电按钮
+                      _buildControlButton(languageManager.cancelForceChargeText, () async {
+                        final confirmed = await OperationConfirmDialog.show(
+                          context,
+                          title: languageManager.isChinese ? '确认取消强制充电' : 'Confirm Cancel Force Charge',
+                          operationName: languageManager.cancelForceChargeText,
                         );
-                      } else if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('操作失败'),
-                            backgroundColor: Colors.red,
-                          ),
+                        
+                        if (confirmed && mounted) {
+                          final success = await _batteryDataManager.writeParameters(0x0008, [0]);
+                          
+                          if (success && mounted) {
+                            await _readControlFlags();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(languageManager.isChinese ? '已取消强制充电' : 'Force charge canceled'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          } else if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(languageManager.isChinese ? '操作失败' : 'Operation failed'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        }
+                      }),
+                      const SizedBox(height: 20.0),
+                      
+                      // 强制放电控制
+                      Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1A2332),
+                          borderRadius: BorderRadius.circular(10.0),
+                          border: Border.all(color: const Color(0xFF3A475E), width: 1),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                languageManager.forceDischargeControlText,
+                                style: const TextStyle(color: Colors.white, fontSize: 16.0),
+                              ),
+                            ),
+                            Switch(
+                              value: _forceDischargeSwitch,
+                              onChanged: (value) async {
+                                final confirmed = await OperationConfirmDialog.show(
+                                  context,
+                                  title: languageManager.isChinese ? '确认切换强制放电控制' : 'Confirm Toggle Force Discharge Control',
+                                  operationName: languageManager.isChinese 
+                                    ? (value ? '开启强制放电控制' : '关闭强制放电控制') 
+                                    : (value ? 'Turn on force discharge control' : 'Turn off force discharge control'),
+                                );
+                                
+                                if (confirmed && mounted) {
+                                  final address = value ? 0x0003 : 0x0004;
+                                  final success = await _batteryDataManager.writeParameters(address, [0]);
+                                  
+                                  if (success && mounted) {
+                                    setState(() {
+                                      _forceDischargeSwitch = value;
+                                    });
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(languageManager.isChinese 
+                                          ? (value ? '强制放电控制已开启' : '强制放电控制已关闭') 
+                                          : (value ? 'Force discharge control on' : 'Force discharge control off')),
+                                        backgroundColor: Colors.green,
+                                      ),
+                                    );
+                                  } else if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(languageManager.isChinese ? '操作失败' : 'Operation failed'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                              activeColor: Colors.blue,
+                              inactiveTrackColor: const Color(0xFF3A475E),
+                              inactiveThumbColor: Colors.grey,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8.0),
+                      
+                      // 取消强制放电按钮
+                      _buildControlButton(languageManager.cancelForceDischargeText, () async {
+                        final confirmed = await OperationConfirmDialog.show(
+                          context,
+                          title: languageManager.isChinese ? '确认取消强制放电' : 'Confirm Cancel Force Discharge',
+                          operationName: languageManager.cancelForceDischargeText,
                         );
-                      }
-                    }
-                  }),
+                        
+                        if (confirmed && mounted) {
+                          final success = await _batteryDataManager.writeParameters(0x0005, [0]);
+                          
+                          if (success && mounted) {
+                            await _readControlFlags();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(languageManager.isChinese ? '已取消强制放电' : 'Force discharge canceled'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          } else if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(languageManager.isChinese ? '操作失败' : 'Operation failed'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        }
+                      }),
+                    ],
+                  ),
                 ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      }
     );
   }
 

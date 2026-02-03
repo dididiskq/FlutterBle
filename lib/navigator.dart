@@ -77,7 +77,7 @@ class _MainNavigatorState extends State<MainNavigator> {
             label: '我的',
           ),
         ],
-        selectedItemColor: Colors.red, // 选中项颜色
+        selectedItemColor: Colors.blue, // 选中项颜色
         unselectedItemColor: Colors.grey, // 未选中项颜色
         backgroundColor: Colors.black, // 导航栏背景色
         type: BottomNavigationBarType.fixed,

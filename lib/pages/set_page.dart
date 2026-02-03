@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'balance_params_page.dart';
 import 'current_params_page.dart';
 import 'quick_settings_page.dart';
@@ -6,6 +7,7 @@ import 'system_params_page.dart';
 import 'temperature_params_page.dart';
 import 'voltage_params_page.dart';
 import '../managers/battery_data_manager.dart';
+import '../managers/language_manager.dart';
 
 // 侧边栏菜单项数据
 class MenuItem {
@@ -101,35 +103,35 @@ class _SetPageState extends State<SetPage> {
   }
 
   // 创建侧边栏菜单
-  List<MenuItem> _buildMenuItems(BuildContext context) {
+  List<MenuItem> _buildMenuItems(BuildContext context, LanguageManager languageManager) {
     return [
       MenuItem(
-        title: '快速设置',
+        title: languageManager.quickSettingsTitle,
         icon: Icons.settings,
         page: QuickSettingsPage(),
       ),
       MenuItem(
-        title: '电压参数',
+        title: languageManager.voltageParamsTitle,
         icon: Icons.bolt,
         page: VoltageParamsPage(),
       ),
       MenuItem(
-        title: '温度参数',
+        title: languageManager.temperatureParamsTitle,
         icon: Icons.thermostat,
         page: TemperatureParamsPage(),
       ),
       MenuItem(
-        title: '电流参数',
+        title: languageManager.currentParamsTitle,
         icon: Icons.flash_on,
         page: CurrentParamsPage(),
       ),
       MenuItem(
-        title: '均衡参数',
+        title: languageManager.balanceParamsTitle,
         icon: Icons.balance,
         page: BalanceParamsPage(),
       ),
       MenuItem(
-        title: '系统参数',
+        title: languageManager.systemParamsTitle,
         icon: Icons.system_update,
         page: SystemParamsPage(),
       ),
@@ -174,7 +176,7 @@ class _SetPageState extends State<SetPage> {
       child: Text(
         value,
         style: const TextStyle(
-            color: Colors.red, fontSize: 16, fontWeight: FontWeight.bold),
+            color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
         textAlign: TextAlign.center,
       ),
     );
@@ -220,348 +222,351 @@ class _SetPageState extends State<SetPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      key: _scaffoldKey,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(60.0),
-        child: Container(
-          color: Colors.black, // 设置背景色为黑色，与底部导航栏一致
-          padding: const EdgeInsets.fromLTRB(
-              10.0, 44.0, 10.0, 10.0), // 调整padding避开状态栏
-          alignment: Alignment.bottomCenter,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // 左侧侧边栏按钮
-              SizedBox(
-                width: 80.0,
-                child: IconButton(
-                  icon: const Icon(Icons.menu, color: Colors.white),
-                  onPressed: () {
-                    print('展开');
-                    // 抽屉打开时停止自动读取
-                    _batteryDataManager.stopAutoRead();
-                    _scaffoldKey.currentState?.openDrawer();
-                  },
-                ),
-              ),
-              // ultra bms标签
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 15.0, vertical: 8.0),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.red, width: 2),
-                  borderRadius: BorderRadius.circular(5.0),
-                ),
-                child: const Text(
-                  'Ultra Bms',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18.0,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              // 右侧空白占位
-              const SizedBox(width: 80.0),
-            ],
-          ),
-        ),
-      ),
-      // 侧边栏抽屉
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            // 侧边栏头部
-            DrawerHeader(
-              decoration: const BoxDecoration(
-                color: Colors.blue,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: const [
-                  Text(
-                    '设置菜单',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
+    return Consumer<LanguageManager>(
+      builder: (context, languageManager, child) {
+        return Scaffold(
+          key: _scaffoldKey,
+          appBar: PreferredSize(
+            preferredSize: const Size.fromHeight(55.0),
+            child: Container(
+              color: Colors.black, // 设置背景色为黑色，与底部导航栏一致
+              padding: const EdgeInsets.fromLTRB(
+                  10.0, 44.0, 10.0, 10.0), // 调整padding避开状态栏
+              alignment: Alignment.bottomCenter,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // 左侧侧边栏按钮
+                  SizedBox(
+                    width: 80.0,
+                    child: IconButton(
+                      icon: const Icon(Icons.menu, color: Colors.white),
+                      onPressed: () {
+                        print('展开');
+                        // 抽屉打开时停止自动读取
+                        _batteryDataManager.stopAutoRead();
+                        _scaffoldKey.currentState?.openDrawer();
+                      },
                     ),
                   ),
-                  SizedBox(height: 8),
-                  Text(
-                    'BMS参数配置',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
+                  // ultra bms标签
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 8.0),
+                    decoration: BoxDecoration(
+                      // border: Border.all(color: Colors.red, width: 1),
+                      // borderRadius: BorderRadius.circular(5.0),
+                    ),
+                    child: const Text(
+                      'Ultra Bms',
+                      style: TextStyle(
+                        color: Colors.blue,
+                        fontSize: 22.0,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
+                  // 右侧空白占位
+                  const SizedBox(width: 80.0),
                 ],
               ),
             ),
-            // 侧边栏菜单项
-            ..._buildMenuItems(context).map((item) => ListTile(
-                  leading: Icon(item.icon, color: Colors.blue),
-                  title: Text(item.title),
-                  onTap: () {
-                    // 关闭抽屉
-                    Navigator.pop(context);
-                    // 抽屉关闭时重新启动自动读取
-                    // _batteryDataManager.startAutoRead();
-                    // 跳转到对应页面
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => item.page),
-                    );
-                  },
-                )),
-          ],
-        ),
-      ),
-      body: Container(
-        color: const Color(0xFF0A1128),
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+          // 侧边栏抽屉
+          drawer: Drawer(
+            child: ListView(
+              padding: EdgeInsets.zero,
               children: [
-                // SOC显示区
-                Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A2332),
-                    borderRadius: BorderRadius.circular(8.0),
-                    border: Border.all(color: const Color(0xFF3A475E), width: 1),
+                // 侧边栏头部
+                DrawerHeader(
+                  decoration: const BoxDecoration(
+                    color: Colors.blue,
                   ),
-                  padding: const EdgeInsets.all(16.0),
-                  margin: const EdgeInsets.only(bottom: 16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      const Text(
-                        'SOC',
-                        style: TextStyle(color: Colors.white, fontSize: 14),
+                      Text(
+                        languageManager.setPageTitle,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                      const SizedBox(height: 4),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      const SizedBox(height: 8),
+                      Text(
+                        languageManager.bmsParamsConfig,
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // 侧边栏菜单项
+                ..._buildMenuItems(context, languageManager).map((item) => ListTile(
+                      leading: Icon(item.icon, color: Colors.blue),
+                      title: Text(item.title),
+                      onTap: () {
+                        // 关闭抽屉
+                        Navigator.pop(context);
+                        // 抽屉关闭时重新启动自动读取
+                        // _batteryDataManager.startAutoRead();
+                        // 跳转到对应页面
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => item.page),
+                        );
+                      },
+                    )),
+              ],
+            ),
+          ),
+          body: Container(
+            color: const Color(0xFF0A1128),
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // SOC显示区
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1A2332),
+                        borderRadius: BorderRadius.circular(8.0),
+                        border: Border.all(color: const Color(0xFF3A475E), width: 1),
+                      ),
+                      padding: const EdgeInsets.all(16.0),
+                      margin: const EdgeInsets.only(bottom: 16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '${_socValue.toStringAsFixed(0)}%',
+                            'SOC',
+                            style: const TextStyle(color: Colors.white, fontSize: 14),
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                '${_socValue.toStringAsFixed(0)}%',
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold),
+                              ),
+                              Row(
+                                children: [
+                                  _buildStatusIndicator(languageManager.chargeMos, _chargeMosOn ? Colors.green : Colors.red),
+                                  const SizedBox(width: 16),
+                                  _buildStatusIndicator(languageManager.dischargeMos, _dischargeMosOn ? Colors.green : Colors.red),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // 总容量显示
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1A2332),
+                        borderRadius: BorderRadius.circular(8.0),
+                        border: Border.all(color: const Color(0xFF3A475E), width: 1),
+                      ),
+                      padding: const EdgeInsets.all(16.0),
+                      margin: const EdgeInsets.only(bottom: 16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            languageManager.totalCapacity,
+                            style: const TextStyle(color: Colors.white, fontSize: 14),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${_totalCapacity.toStringAsFixed(2)}AH',
                             style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold),
                           ),
+                        ],
+                      ),
+                    ),
+
+                    // 电池信息标题
+                    Text(
+                      languageManager.batteryInfo,
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // 电池信息表格
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1A2332),
+                        borderRadius: BorderRadius.circular(8.0),
+                        border: Border.all(color: const Color(0xFF3A475E), width: 1),
+                      ),
+                      padding: const EdgeInsets.all(12.0),
+                      margin: const EdgeInsets.only(bottom: 16.0),
+                      child: Column(
+                        children: [
+                          // 电池信息表头
                           Row(
                             children: [
-                              _buildStatusIndicator('充电MOS', _chargeMosOn ? Colors.green : Colors.red),
-                              const SizedBox(width: 16),
-                              _buildStatusIndicator('放电MOS', _dischargeMosOn ? Colors.green : Colors.red),
+                              _buildInfoHeader(languageManager.totalVoltage),
+                              _buildInfoHeader(languageManager.totalCurrent),
+                              _buildInfoHeader(languageManager.voltageDiff),
+                              _buildInfoHeader(languageManager.maxVoltage),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          // 电池信息数据行1
+                          Row(
+                            children: [
+                              _buildInfoValue('${_totalVoltage.toStringAsFixed(1)}V'),
+                              _buildInfoValue('${_totalCurrent.toStringAsFixed(1)}A'),
+                              _buildInfoValue('${_voltageDiff.toStringAsFixed(3)}V'),
+                              _buildInfoValue('${_cellVoltages.isNotEmpty ? _cellVoltages.reduce((a, b) => a > b ? a : b).toStringAsFixed(3) : '0.000'}V'),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          // 电池信息表头行2
+                          Row(
+                            children: [
+                              _buildInfoHeader(languageManager.minVoltage),
+                              _buildInfoHeader(languageManager.cycleCount),
+                              _buildInfoHeader(languageManager.power),
+                              Expanded(child: SizedBox()), // 占位
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          // 电池信息数据行2
+                          Row(
+                            children: [
+                              _buildInfoValue(_cellVoltages.isNotEmpty ? '${_cellVoltages.reduce((a, b) => a < b ? a : b).toStringAsFixed(3)}V' : '0.000V'),
+                              _buildInfoValue('$_cycleCount'),
+                              _buildInfoValue('${_totalPower.toStringAsFixed(1)}W'),
+                              Expanded(child: SizedBox()), // 占位
                             ],
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                ),
+                    ),
 
-                // 总容量显示
-                Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A2332),
-                    borderRadius: BorderRadius.circular(8.0),
-                    border: Border.all(color: const Color(0xFF3A475E), width: 1),
-                  ),
-                  padding: const EdgeInsets.all(16.0),
-                  margin: const EdgeInsets.only(bottom: 16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        '总容量',
-                        style: TextStyle(color: Colors.white, fontSize: 14),
+                    // 温度信息标题
+                    Text(
+                      languageManager.temperatureInfo,
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // 温度信息表格
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1A2332),
+                        borderRadius: BorderRadius.circular(8.0),
+                        border: Border.all(color: const Color(0xFF3A475E), width: 1),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${_totalCapacity.toStringAsFixed(2)}AH',
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // 电池信息标题
-                const Text(
-                  '电池信息',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-
-                // 电池信息表格
-                Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A2332),
-                    borderRadius: BorderRadius.circular(8.0),
-                    border: Border.all(color: const Color(0xFF3A475E), width: 1),
-                  ),
-                  padding: const EdgeInsets.all(12.0),
-                  margin: const EdgeInsets.only(bottom: 16.0),
-                  child: Column(
-                    children: [
-                      // 电池信息表头
-                      Row(
+                      padding: const EdgeInsets.all(12.0),
+                      margin: const EdgeInsets.only(bottom: 16.0),
+                      child: Column(
                         children: [
-                          _buildInfoHeader('总电压'),
-                          _buildInfoHeader('总电流'),
-                          _buildInfoHeader('压差'),
-                          _buildInfoHeader('最高电压'),
+                          // 温度信息表头
+                          Row(
+                            children: [
+                              _buildInfoHeader(languageManager.mosTemp),
+                              _buildInfoHeader(languageManager.t1Temp),
+                              _buildInfoHeader(languageManager.t2Temp),
+                              _buildInfoHeader(languageManager.t3Temp),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          // 温度信息数据
+                          Row(
+                            children: [
+                              _buildInfoValue('${_mosTemp.toStringAsFixed(1)}°C'),
+                              _buildInfoValue('${_t1Temp.toStringAsFixed(1)}°C'),
+                              _buildInfoValue('${_t2Temp.toStringAsFixed(1)}°C'),
+                              _buildInfoValue('--'),
+                            ],
+                          ),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      // 电池信息数据行1
-                      Row(
-                        children: [
-                          _buildInfoValue('${_totalVoltage.toStringAsFixed(1)}V'),
-                          _buildInfoValue('${_totalCurrent.toStringAsFixed(1)}A'),
-                          _buildInfoValue('${_voltageDiff.toStringAsFixed(3)}V'),
-                          _buildInfoValue('${_cellVoltages.isNotEmpty ? _cellVoltages.reduce((a, b) => a > b ? a : b).toStringAsFixed(3) : '0.000'}V'),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      // 电池信息表头行2
-                      Row(
-                        children: [
-                          _buildInfoHeader('最低电压'),
-                          _buildInfoHeader('循环次数'),
-                          _buildInfoHeader('功率'),
-                          Expanded(child: SizedBox()), // 占位
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      // 电池信息数据行2
-                      Row(
-                        children: [
-                          _buildInfoValue(_cellVoltages.isNotEmpty ? '${_cellVoltages.reduce((a, b) => a < b ? a : b).toStringAsFixed(3)}V' : '0.000V'),
-                          _buildInfoValue('$_cycleCount'),
-                          _buildInfoValue('${_totalPower.toStringAsFixed(1)}W'),
-                          Expanded(child: SizedBox()), // 占位
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+                    ),
 
-                // 温度信息标题
-                const Text(
-                  '温度信息',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
+                    // 单体电压标题
+                    Text(
+                      languageManager.cellVoltage,
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
 
-                // 温度信息表格
-                Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A2332),
-                    borderRadius: BorderRadius.circular(8.0),
-                    border: Border.all(color: const Color(0xFF3A475E), width: 1),
-                  ),
-                  padding: const EdgeInsets.all(12.0),
-                  margin: const EdgeInsets.only(bottom: 16.0),
-                  child: Column(
-                    children: [
-                      // 温度信息表头
-                      Row(
-                        children: [
-                          _buildInfoHeader('MOS温度'),
-                          _buildInfoHeader('T1温度'),
-                          _buildInfoHeader('T2温度'),
-                          _buildInfoHeader('T3温度'),
-                        ],
+                    // 单体电压网格布局
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1A2332),
+                        borderRadius: BorderRadius.circular(8.0),
+                        border: Border.all(color: const Color(0xFF3A475E), width: 1),
                       ),
-                      const SizedBox(height: 8),
-                      // 温度信息数据
-                      Row(
-                        children: [
-                          _buildInfoValue('${_mosTemp.toStringAsFixed(1)}°C'),
-                          _buildInfoValue('${_t1Temp.toStringAsFixed(1)}°C'),
-                          _buildInfoValue('${_t2Temp.toStringAsFixed(1)}°C'),
-                          _buildInfoValue('--'),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-
-                // 单体电压标题
-                const Text(
-                  '单体电压',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-
-                // 单体电压网格布局
-                Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A2332),
-                    borderRadius: BorderRadius.circular(8.0),
-                    border: Border.all(color: const Color(0xFF3A475E), width: 1),
-                  ),
-                  padding: const EdgeInsets.all(12.0),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final displayCount = _cellNumber > 0 ? _cellNumber : 16;
-                      final displayVoltages = _cellVoltages.isEmpty 
-                          ? List.filled(displayCount, 0.0) 
-                          : _cellVoltages;
-                      
-                      // 根据屏幕宽度动态调整列数
-                      int crossAxisCount = constraints.maxWidth > 600 ? 4 : 3;
-                      // 计算每个网格项的大小
-                      double itemSize = (constraints.maxWidth - (crossAxisCount - 1) * 8.0 - 24.0) / crossAxisCount;
-                        
-                      return GridView.builder(
-                        shrinkWrap: true,
-                        physics: NeverScrollableScrollPhysics(),
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: crossAxisCount, // 动态列数
-                          crossAxisSpacing: 8.0,
-                          mainAxisSpacing: 8.0,
-                          childAspectRatio: 1.0, // 宽高比1:1
-                        ),
-                        itemCount: displayCount,
-                        itemBuilder: (context, index) {
-                          final voltage = index < displayVoltages.length 
-                              ? displayVoltages[index] 
-                              : 0.0;
-                          final voltageText = voltage > 0 
-                              ? '${voltage.toStringAsFixed(2)}V' 
-                              : '--';
-                          return _buildCellVoltageItem(index + 1, voltageText);
+                      padding: const EdgeInsets.all(12.0),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final displayCount = _cellNumber > 0 ? _cellNumber : 16;
+                          final displayVoltages = _cellVoltages.isEmpty 
+                              ? List.filled(displayCount, 0.0) 
+                              : _cellVoltages;
+                           
+                          // 根据屏幕宽度动态调整列数
+                          int crossAxisCount = constraints.maxWidth > 600 ? 4 : 3;
+                          // 计算每个网格项的大小
+                          double itemSize = (constraints.maxWidth - (crossAxisCount - 1) * 8.0 - 24.0) / crossAxisCount;
+                            
+                          return GridView.builder(
+                            shrinkWrap: true,
+                            physics: NeverScrollableScrollPhysics(),
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: crossAxisCount, // 动态列数
+                              crossAxisSpacing: 8.0,
+                              mainAxisSpacing: 8.0,
+                              childAspectRatio: 1.0, // 宽高比1:1
+                            ),
+                            itemCount: displayCount,
+                            itemBuilder: (context, index) {
+                              final voltage = index < displayVoltages.length 
+                                  ? displayVoltages[index] 
+                                  : 0.0;
+                              final voltageText = voltage > 0 
+                                  ? '${voltage.toStringAsFixed(2)}V' 
+                                  : '--';
+                              return _buildCellVoltageItem(index + 1, voltageText);
+                            },
+                          );
                         },
-                      );
-                    },
-                  ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../components/common_app_bar.dart';
 import '../components/write_confirm_dialog.dart';
 import '../managers/battery_data_manager.dart';
+import '../managers/language_manager.dart';
 
 // 电流参数页面
 class CurrentParamsPage extends StatefulWidget {
@@ -164,27 +166,37 @@ class _CurrentParamsPageState extends State<CurrentParamsPage> {
   }
 
   Future<void> _writeChargeOvercurrent1Protect() async {
+    final languageManager = Provider.of<LanguageManager>(context, listen: false);
     final text = _chargeOvercurrent1ProtectController.text.trim();
     if (text.isEmpty) {
-      _showStatus('请输入充电过流1保护电流', Colors.orange);
+      _showStatus(
+        languageManager.isChinese ? '请输入充电过流1保护电流' : 'Please enter Charge Overcurrent 1 Protect', 
+        Colors.orange
+      );
       return;
     }
     
     final current = int.tryParse(text);
     if (current == null || current <= 0) {
-      _showStatus('请输入有效的充电过流1保护电流', Colors.orange);
+      _showStatus(
+        languageManager.isChinese ? '请输入有效的充电过流1保护电流' : 'Please enter valid Charge Overcurrent 1 Protect', 
+        Colors.orange
+      );
       return;
     }
     
     if (!_batteryDataManager.isConnected) {
-      _showStatus('设备未连接，无法写入', Colors.red);
+      _showStatus(
+        languageManager.isChinese ? '设备未连接，无法写入' : 'Device not connected, cannot write', 
+        Colors.red
+      );
       return;
     }
     
     final currentValue = await _batteryDataManager.readChargeOvercurrent1Protect();
     final confirmed = await WriteConfirmDialog.show(
       context,
-      title: '确认写入',
+      title: languageManager.isChinese ? '确认写入' : 'Confirm Write',
       parameterName: '充电过流1保护电流',
       oldValue: currentValue ?? 0,
       newValue: current,
@@ -196,26 +208,36 @@ class _CurrentParamsPageState extends State<CurrentParamsPage> {
   }
 
   Future<void> _writeChargeOvercurrent1Delay() async {
+    final languageManager = Provider.of<LanguageManager>(context, listen: false);
     final text = _chargeOvercurrent1DelayController.text.trim();
     if (text.isEmpty) {
-      _showStatus('请输入充电过流1延时', Colors.orange);
+      _showStatus(
+        languageManager.isChinese ? '请输入充电过流1延时' : 'Please enter Charge Overcurrent 1 Delay', 
+        Colors.orange
+      );
       return;
     }
     
     final delay = int.tryParse(text);
     if (delay == null || delay < 0) {
-      _showStatus('请输入有效的充电过流1延时', Colors.orange);
+      _showStatus(
+        languageManager.isChinese ? '请输入有效的充电过流1延时' : 'Please enter valid Charge Overcurrent 1 Delay', 
+        Colors.orange
+      );
       return;
     }
     
     if (!_batteryDataManager.isConnected) {
-      _showStatus('设备未连接，无法写入', Colors.red);
+      _showStatus(
+        languageManager.isChinese ? '设备未连接，无法写入' : 'Device not connected, cannot write', 
+        Colors.red
+      );
       return;
     }
     
     final confirmed = await WriteConfirmDialog.show(
       context,
-      title: '确认写入',
+      title: languageManager.isChinese ? '确认写入' : 'Confirm Write',
       parameterName: '充电过流1延时',
       oldValue: 0,
       newValue: delay,
@@ -227,26 +249,36 @@ class _CurrentParamsPageState extends State<CurrentParamsPage> {
   }
 
   Future<void> _writeDischargeOvercurrent1Protect() async {
+    final languageManager = Provider.of<LanguageManager>(context, listen: false);
     final text = _dischargeOvercurrent1ProtectController.text.trim();
     if (text.isEmpty) {
-      _showStatus('请输入放电过流1保护电流', Colors.orange);
+      _showStatus(
+        languageManager.isChinese ? '请输入放电过流1保护电流' : 'Please enter Discharge Overcurrent 1 Protect', 
+        Colors.orange
+      );
       return;
     }
     
     final current = int.tryParse(text);
     if (current == null || current <= 0) {
-      _showStatus('请输入有效的放电过流1保护电流', Colors.orange);
+      _showStatus(
+        languageManager.isChinese ? '请输入有效的放电过流1保护电流' : 'Please enter valid Discharge Overcurrent 1 Protect', 
+        Colors.orange
+      );
       return;
     }
     
     if (!_batteryDataManager.isConnected) {
-      _showStatus('设备未连接，无法写入', Colors.red);
+      _showStatus(
+        languageManager.isChinese ? '设备未连接，无法写入' : 'Device not connected, cannot write', 
+        Colors.red
+      );
       return;
     }
     
     final confirmed = await WriteConfirmDialog.show(
       context,
-      title: '确认写入',
+      title: languageManager.isChinese ? '确认写入' : 'Confirm Write',
       parameterName: '放电过流1保护电流',
       oldValue: 0,
       newValue: current,
@@ -258,26 +290,36 @@ class _CurrentParamsPageState extends State<CurrentParamsPage> {
   }
 
   Future<void> _writeDischargeOvercurrent1Delay() async {
+    final languageManager = Provider.of<LanguageManager>(context, listen: false);
     final text = _dischargeOvercurrent1DelayController.text.trim();
     if (text.isEmpty) {
-      _showStatus('请输入放电过流1延时', Colors.orange);
+      _showStatus(
+        languageManager.isChinese ? '请输入放电过流1延时' : 'Please enter Discharge Overcurrent 1 Delay', 
+        Colors.orange
+      );
       return;
     }
     
     final delay = int.tryParse(text);
     if (delay == null || delay < 0) {
-      _showStatus('请输入有效的放电过流1延时', Colors.orange);
+      _showStatus(
+        languageManager.isChinese ? '请输入有效的放电过流1延时' : 'Please enter valid Discharge Overcurrent 1 Delay', 
+        Colors.orange
+      );
       return;
     }
     
     if (!_batteryDataManager.isConnected) {
-      _showStatus('设备未连接，无法写入', Colors.red);
+      _showStatus(
+        languageManager.isChinese ? '设备未连接，无法写入' : 'Device not connected, cannot write', 
+        Colors.red
+      );
       return;
     }
     
     final confirmed = await WriteConfirmDialog.show(
       context,
-      title: '确认写入',
+      title: languageManager.isChinese ? '确认写入' : 'Confirm Write',
       parameterName: '放电过流1延时',
       oldValue: 0,
       newValue: delay,
@@ -289,27 +331,37 @@ class _CurrentParamsPageState extends State<CurrentParamsPage> {
   }
 
   Future<void> _writeDischargeOvercurrent2Protect() async {
+    final languageManager = Provider.of<LanguageManager>(context, listen: false);
     final text = _dischargeOvercurrent2ProtectController.text.trim();
     if (text.isEmpty) {
-      _showStatus('请输入放电过流2保护电流', Colors.orange);
+      _showStatus(
+        languageManager.isChinese ? '请输入放电过流2保护电流' : 'Please enter Discharge Overcurrent 2 Protect', 
+        Colors.orange
+      );
       return;
     }
     
     final current = int.tryParse(text);
     if (current == null || current <= 0) {
-      _showStatus('请输入有效的放电过流2保护电流', Colors.orange);
+      _showStatus(
+        languageManager.isChinese ? '请输入有效的放电过流2保护电流' : 'Please enter valid Discharge Overcurrent 2 Protect', 
+        Colors.orange
+      );
       return;
     }
     
     if (!_batteryDataManager.isConnected) {
-      _showStatus('设备未连接，无法写入', Colors.red);
+      _showStatus(
+        languageManager.isChinese ? '设备未连接，无法写入' : 'Device not connected, cannot write', 
+        Colors.red
+      );
       return;
     }
     
     final currentValue = await _batteryDataManager.readDischargeOvercurrent2Protect();
     final confirmed = await WriteConfirmDialog.show(
       context,
-      title: '确认写入',
+      title: languageManager.isChinese ? '确认写入' : 'Confirm Write',
       parameterName: '放电过流2保护电流',
       oldValue: currentValue ?? 0,
       newValue: current,
@@ -321,26 +373,36 @@ class _CurrentParamsPageState extends State<CurrentParamsPage> {
   }
 
   Future<void> _writeDischargeOvercurrent2Delay() async {
+    final languageManager = Provider.of<LanguageManager>(context, listen: false);
     final text = _dischargeOvercurrent2DelayController.text.trim();
     if (text.isEmpty) {
-      _showStatus('请输入放电过流2延时', Colors.orange);
+      _showStatus(
+        languageManager.isChinese ? '请输入放电过流2延时' : 'Please enter Discharge Overcurrent 2 Delay', 
+        Colors.orange
+      );
       return;
     }
     
     final delay = int.tryParse(text);
     if (delay == null || delay < 0) {
-      _showStatus('请输入有效的放电过流2延时', Colors.orange);
+      _showStatus(
+        languageManager.isChinese ? '请输入有效的放电过流2延时' : 'Please enter valid Discharge Overcurrent 2 Delay', 
+        Colors.orange
+      );
       return;
     }
     
     if (!_batteryDataManager.isConnected) {
-      _showStatus('设备未连接，无法写入', Colors.red);
+      _showStatus(
+        languageManager.isChinese ? '设备未连接，无法写入' : 'Device not connected, cannot write', 
+        Colors.red
+      );
       return;
     }
     
     final confirmed = await WriteConfirmDialog.show(
       context,
-      title: '确认写入',
+      title: languageManager.isChinese ? '确认写入' : 'Confirm Write',
       parameterName: '放电过流2延时',
       oldValue: 0,
       newValue: delay,
@@ -352,27 +414,37 @@ class _CurrentParamsPageState extends State<CurrentParamsPage> {
   }
 
   Future<void> _writeShortCircuitProtect() async {
+    final languageManager = Provider.of<LanguageManager>(context, listen: false);
     final text = _shortCircuitProtectController.text.trim();
     if (text.isEmpty) {
-      _showStatus('请输入短路保护电流', Colors.orange);
+      _showStatus(
+        languageManager.isChinese ? '请输入短路保护电流' : 'Please enter Short Circuit Protect', 
+        Colors.orange
+      );
       return;
     }
     
     final current = int.tryParse(text);
     if (current == null || current <= 0) {
-      _showStatus('请输入有效的短路保护电流', Colors.orange);
+      _showStatus(
+        languageManager.isChinese ? '请输入有效的短路保护电流' : 'Please enter valid Short Circuit Protect', 
+        Colors.orange
+      );
       return;
     }
     
     if (!_batteryDataManager.isConnected) {
-      _showStatus('设备未连接，无法写入', Colors.red);
+      _showStatus(
+        languageManager.isChinese ? '设备未连接，无法写入' : 'Device not connected, cannot write', 
+        Colors.red
+      );
       return;
     }
     
     final currentValue = await _batteryDataManager.readShortCircuitProtect();
     final confirmed = await WriteConfirmDialog.show(
       context,
-      title: '确认写入',
+      title: languageManager.isChinese ? '确认写入' : 'Confirm Write',
       parameterName: '短路保护电流',
       oldValue: currentValue ?? 0,
       newValue: current,
@@ -384,26 +456,36 @@ class _CurrentParamsPageState extends State<CurrentParamsPage> {
   }
 
   Future<void> _writeShortCircuitDelay() async {
+    final languageManager = Provider.of<LanguageManager>(context, listen: false);
     final text = _shortCircuitDelayController.text.trim();
     if (text.isEmpty) {
-      _showStatus('请输入短路保护延时', Colors.orange);
+      _showStatus(
+        languageManager.isChinese ? '请输入短路保护延时' : 'Please enter Short Circuit Delay', 
+        Colors.orange
+      );
       return;
     }
     
     final delay = int.tryParse(text);
     if (delay == null || delay < 0) {
-      _showStatus('请输入有效的短路保护延时', Colors.orange);
+      _showStatus(
+        languageManager.isChinese ? '请输入有效的短路保护延时' : 'Please enter valid Short Circuit Delay', 
+        Colors.orange
+      );
       return;
     }
     
     if (!_batteryDataManager.isConnected) {
-      _showStatus('设备未连接，无法写入', Colors.red);
+      _showStatus(
+        languageManager.isChinese ? '设备未连接，无法写入' : 'Device not connected, cannot write', 
+        Colors.red
+      );
       return;
     }
     
     final confirmed = await WriteConfirmDialog.show(
       context,
-      title: '确认写入',
+      title: languageManager.isChinese ? '确认写入' : 'Confirm Write',
       parameterName: '短路保护延时',
       oldValue: 0,
       newValue: delay,
@@ -415,27 +497,37 @@ class _CurrentParamsPageState extends State<CurrentParamsPage> {
   }
 
   Future<void> _writeSamplingResistance() async {
+    final languageManager = Provider.of<LanguageManager>(context, listen: false);
     final text = _samplingResistanceController.text.trim();
     if (text.isEmpty) {
-      _showStatus('请输入采样电阻值', Colors.orange);
+      _showStatus(
+        languageManager.isChinese ? '请输入采样电阻值' : 'Please enter Sampling Resistance', 
+        Colors.orange
+      );
       return;
     }
     
     final resistance = double.tryParse(text);
     if (resistance == null || resistance <= 0) {
-      _showStatus('请输入有效的采样电阻值', Colors.orange);
+      _showStatus(
+        languageManager.isChinese ? '请输入有效的采样电阻值' : 'Please enter valid Sampling Resistance', 
+        Colors.orange
+      );
       return;
     }
     
     if (!_batteryDataManager.isConnected) {
-      _showStatus('设备未连接，无法写入', Colors.red);
+      _showStatus(
+        languageManager.isChinese ? '设备未连接，无法写入' : 'Device not connected, cannot write', 
+        Colors.red
+      );
       return;
     }
     
     final currentValue = await _batteryDataManager.readSamplingResistance();
     final confirmed = await WriteConfirmDialog.show(
       context,
-      title: '确认写入',
+      title: languageManager.isChinese ? '确认写入' : 'Confirm Write',
       parameterName: '采样电阻值',
       oldValue: currentValue ?? 0.0,
       newValue: resistance,
@@ -447,9 +539,11 @@ class _CurrentParamsPageState extends State<CurrentParamsPage> {
   }
 
   Future<void> _executeWrite(Future<bool> Function() writeFunc, String paramName) async {
+    final languageManager = Provider.of<LanguageManager>(context, listen: false);
+    
     setState(() {
       _isWriting = true;
-      _writeStatus = '正在写入...';
+      _writeStatus = languageManager.isChinese ? '正在写入...' : 'Writing...';
       _writeStatusColor = Colors.blue;
     });
     
@@ -458,15 +552,24 @@ class _CurrentParamsPageState extends State<CurrentParamsPage> {
       setState(() {
         _isWriting = false;
         if (success) {
-          _showStatus('$paramName写入成功', Colors.green);
+          _showStatus(
+            languageManager.isChinese ? '$paramName写入成功' : '$paramName Write Success', 
+            Colors.green
+          );
         } else {
-          _showStatus('$paramName写入失败', Colors.red);
+          _showStatus(
+            languageManager.isChinese ? '$paramName写入失败' : '$paramName Write Failed', 
+            Colors.red
+          );
         }
       });
     } catch (e) {
       setState(() {
         _isWriting = false;
-        _showStatus('写入出错: $e', Colors.red);
+        _showStatus(
+          languageManager.isChinese ? '写入出错: $e' : 'Write Error: $e', 
+          Colors.red
+        );
       });
     }
   }
@@ -489,114 +592,151 @@ class _CurrentParamsPageState extends State<CurrentParamsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar:  CommonAppBar(title: '电流参数'),
-      body: Container(
-        color: const Color(0xFF0A1128),
-        child: Padding(
-          padding: EdgeInsets.all(20.0),
-          child: Column(
-            children: [
-              // 表头
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Consumer<LanguageManager>(
+      builder: (context, languageManager, child) {
+        return Scaffold(
+          appBar:  CommonAppBar(title: languageManager.currentParamsTitle),
+          body: Container(
+            color: const Color(0xFF0A1128),
+            child: Padding(
+              padding: EdgeInsets.all(20.0),
+              child: Column(
                 children: [
-                  Expanded(
-                    flex: 2,
-                    child: Text(
-                      '项目',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: Text(
-                      '参数',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 1,
-                    child: Text(
-                      '设定',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 20),
-              // 写入状态显示
-              if (_writeStatus.isNotEmpty)
-                Container(
-                  padding: EdgeInsets.all(12.0),
-                  decoration: BoxDecoration(
-                    color: _writeStatusColor.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8.0),
-                    border: Border.all(color: _writeStatusColor, width: 2),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  // 表头
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      if (_isWriting)
-                        SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(_writeStatusColor),
+                      Expanded(
+                        flex: 2,
+                        child: Text(
+                          languageManager.item,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
                           ),
                         ),
-                      if (_isWriting) SizedBox(width: 10),
-                      Text(
-                        _writeStatus,
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: _writeStatusColor,
-                          fontWeight: FontWeight.bold,
+                      ),
+                      Expanded(
+                        flex: 2,
+                        child: Text(
+                          languageManager.parameter,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        flex: 1,
+                        child: Text(
+                          languageManager.setting,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
                       ),
                     ],
                   ),
-                ),
-              if (_writeStatus.isNotEmpty) SizedBox(height: 20),
-              // 参数列表
-              Expanded(
-                child: ListView(
-                  children: [
-                    _buildParamRow('充电过流1保护电流', _chargeOvercurrent1ProtectController, 'A'),
-                    _buildParamRow('充电过流1延时', _chargeOvercurrent1DelayController, 'ms'),
-                    _buildParamRow('放电过流1保护电流', _dischargeOvercurrent1ProtectController, 'A'),
-                    _buildParamRow('放电过流1延时', _dischargeOvercurrent1DelayController, 'ms'),
-                    _buildParamRow('放电过流2保护电流', _dischargeOvercurrent2ProtectController, 'A'),
-                    _buildParamRow('放电过流2延时', _dischargeOvercurrent2DelayController, 'ms'),
-                    _buildParamRow('短路保护电流', _shortCircuitProtectController, 'A'),
-                    _buildParamRow('短路保护延时', _shortCircuitDelayController, 'us'),
-                    _buildParamRow('采样电阻值', _samplingResistanceController, 'mΩ'),
-                  ],
-                ),
+                  SizedBox(height: 20),
+                  // 写入状态显示
+                  if (_writeStatus.isNotEmpty)
+                    Container(
+                      padding: EdgeInsets.all(12.0),
+                      decoration: BoxDecoration(
+                        color: _writeStatusColor.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8.0),
+                        border: Border.all(color: _writeStatusColor, width: 2),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (_isWriting)
+                            SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(_writeStatusColor),
+                              ),
+                            ),
+                          if (_isWriting) SizedBox(width: 10),
+                          Text(
+                            _writeStatus,
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: _writeStatusColor,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (_writeStatus.isNotEmpty) SizedBox(height: 20),
+                  // 参数列表
+                  Expanded(
+                    child: ListView(
+                      children: [
+                        _buildParamRow('充电过流1保护电流', _chargeOvercurrent1ProtectController, 'A', languageManager),
+                        _buildParamRow('充电过流1延时', _chargeOvercurrent1DelayController, 'ms', languageManager),
+                        _buildParamRow('放电过流1保护电流', _dischargeOvercurrent1ProtectController, 'A', languageManager),
+                        _buildParamRow('放电过流1延时', _dischargeOvercurrent1DelayController, 'ms', languageManager),
+                        _buildParamRow('放电过流2保护电流', _dischargeOvercurrent2ProtectController, 'A', languageManager),
+                        _buildParamRow('放电过流2延时', _dischargeOvercurrent2DelayController, 'ms', languageManager),
+                        _buildParamRow('短路保护电流', _shortCircuitProtectController, 'A', languageManager),
+                        _buildParamRow('短路保护延时', _shortCircuitDelayController, 'us', languageManager),
+                        _buildParamRow('采样电阻值', _samplingResistanceController, 'mΩ', languageManager),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
   // 构建参数行
-  Widget _buildParamRow(String name, TextEditingController controller, String unit) {
+  Widget _buildParamRow(String name, TextEditingController controller, String unit, LanguageManager languageManager) {
+    String displayName = name;
+    if (!languageManager.isChinese) {
+      switch (name) {
+        case '充电过流1保护电流':
+          displayName = 'Charge Overcurrent 1 Protect';
+          break;
+        case '充电过流1延时':
+          displayName = 'Charge Overcurrent 1 Delay';
+          break;
+        case '放电过流1保护电流':
+          displayName = 'Discharge Overcurrent 1 Protect';
+          break;
+        case '放电过流1延时':
+          displayName = 'Discharge Overcurrent 1 Delay';
+          break;
+        case '放电过流2保护电流':
+          displayName = 'Discharge Overcurrent 2 Protect';
+          break;
+        case '放电过流2延时':
+          displayName = 'Discharge Overcurrent 2 Delay';
+          break;
+        case '短路保护电流':
+          displayName = 'Short Circuit Protect';
+          break;
+        case '短路保护延时':
+          displayName = 'Short Circuit Delay';
+          break;
+        case '采样电阻值':
+          displayName = 'Sampling Resistance';
+          break;
+      }
+    }
+    
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 10.0),
       child: Container(
@@ -613,7 +753,7 @@ class _CurrentParamsPageState extends State<CurrentParamsPage> {
               Expanded(
                 flex: 2,
                 child: Text(
-                  name,
+                  displayName,
                   style: TextStyle(
                     fontSize: 16,
                     color: Colors.white,
@@ -692,7 +832,7 @@ class _CurrentParamsPageState extends State<CurrentParamsPage> {
                     minimumSize: Size(60, 36),
                   ),
                   child: Text(
-                    '设置',
+                    languageManager.setting,
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.white,

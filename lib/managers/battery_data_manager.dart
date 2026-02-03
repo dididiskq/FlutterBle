@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:typed_data';
 
 import '../bluetooth/ble_controller.dart';
@@ -38,6 +39,10 @@ class BatteryDataManager {
   Timer? _batteryLevelReadTimer;
   bool _isReading = false;
   
+  // 队列管理相关属性
+  final Queue<ModbusRequest> _requestQueue = Queue<ModbusRequest>();
+  bool _isProcessingRequest = false;
+  
   int _slaveId = 0x16;
   int _cellCount = 16;
   int _temperatureCount = 4;
@@ -46,7 +51,8 @@ class BatteryDataManager {
   Duration _readInterval = const Duration(seconds: 3);
   Duration _batteryLevelReadInterval = const Duration(milliseconds: 500);
   bool _isAutoReadingEnabled = true;
-  
+  bool _isNewBluetoothBoard = false; // 标识是否为第二种蓝牙板，默认为false
+
   int _currentIndex = 1; // 默认选中主页
   
   void setSlaveId(int slaveId) {
@@ -151,100 +157,114 @@ class BatteryDataManager {
   }
   
   Future<void> readAllData() async {
-    if (!isConnected || _isReading || !_isAutoReadingEnabled) {
+    if (!isConnected || !_isAutoReadingEnabled) {
       return;
     }
     
-    _isReading = true;
-    
     try {
-      await readBatteryLevel();                   // 读取电池电量(SOC/SOH)
-      if (!_isAutoReadingEnabled) return;
-      await Future.delayed(const Duration(milliseconds: 100));
-      if (!_isAutoReadingEnabled) return;
-      
-      await readBatteryDc();                  // 读取总容量
-      if (!_isAutoReadingEnabled) return;
-      await Future.delayed(const Duration(milliseconds: 100));
-      if (!_isAutoReadingEnabled) return;
-      
-      await readCellVoltages();                   // 读取总电压
-      if (!_isAutoReadingEnabled) return;
-      await Future.delayed(const Duration(milliseconds: 100));
-      if (!_isAutoReadingEnabled) return;
+      if (_isNewBluetoothBoard) {
+        // 第二种蓝牙板：读取三个表格数据
+        await readTable1Data();                   // 读取表格1数据
+        if (!_isAutoReadingEnabled) return;
+        
+        await readTable2Data();                   // 读取表格2数据
+        if (!_isAutoReadingEnabled) return;
+        
+        await readTable3Data();                   // 读取表格3数据
+        if (!_isAutoReadingEnabled) return;
+      } else {
+        // 第一种蓝牙板：原有逻辑
+        await readBatteryLevel();                   // 读取电池电量(SOC/SOH)
+        if (!_isAutoReadingEnabled) return;
+        
+        await readBatteryDc();                  // 读取总容量
+        if (!_isAutoReadingEnabled) return;
+        
+        await readCellVoltages();                   // 读取总电压
+        if (!_isAutoReadingEnabled) return;
 
-      //读取总电流
-      await readCellCurrent();                   // 读取总电流
-      if (!_isAutoReadingEnabled) return;
-      await Future.delayed(const Duration(milliseconds: 100));
-      if (!_isAutoReadingEnabled) return;
-      
-      //读取充放电状态
-      await readChargeDischargeStatus();                   // 读取充放电状态
-      if (!_isAutoReadingEnabled) return;
-      await Future.delayed(const Duration(milliseconds: 100));
-      if (!_isAutoReadingEnabled) return;
-      
-      await readTemperatures1();                   // 读取温度1数据
-      if (!_isAutoReadingEnabled) return;
-      await Future.delayed(const Duration(milliseconds: 100));
-      if (!_isAutoReadingEnabled) return;
-      
-      await readTemperatures2();                   // 读取温度2数据
-      if (!_isAutoReadingEnabled) return;
-      await Future.delayed(const Duration(milliseconds: 100));
-      if (!_isAutoReadingEnabled) return;
-      
-      await readTemperaturesMos();                   // 读取Mos温度数据
-      if (!_isAutoReadingEnabled) return;
-      await Future.delayed(const Duration(milliseconds: 100));
-      if (!_isAutoReadingEnabled) return;
-      
-      // 读取循环次数
-      await readCycleCount();                   // 读取循环次数
-      if (!_isAutoReadingEnabled) return;
-      await Future.delayed(const Duration(milliseconds: 100));
-      if (!_isAutoReadingEnabled) return;
+        //读取总电流
+        await readCellCurrent();                   // 读取总电流
+        if (!_isAutoReadingEnabled) return;
+        
+        //读取充放电状态
+        await readChargeDischargeStatus();                   // 读取充放电状态
+        if (!_isAutoReadingEnabled) return;
+        
+        await readTemperatures1();                   // 读取温度1数据
+        if (!_isAutoReadingEnabled) return;
+        
+        await readTemperatures2();                   // 读取温度2数据
+        if (!_isAutoReadingEnabled) return;
+        
+        await readTemperaturesMos();                   // 读取Mos温度数据
+        if (!_isAutoReadingEnabled) return;
+        
+        // 读取循环次数
+        await readCycleCount();                   // 读取循环次数
+        if (!_isAutoReadingEnabled) return;
 
-      //读取电池串数
-      await readBatteryStringCount();                   // 读取电池串数
-      if (!_isAutoReadingEnabled) return;
-      await Future.delayed(const Duration(milliseconds: 100));
-      if (!_isAutoReadingEnabled) return;
-      
-      //读取单体电压
-      await readCellAloneVoltages();                   // 读取单体电压
-      if (!_isAutoReadingEnabled) return;
-      await Future.delayed(const Duration(milliseconds: 100));
-      if (!_isAutoReadingEnabled) return;
-      
-      //读取异常信息
-      await readWarningInfo();                   // 读取警告信息
-      if (!_isAutoReadingEnabled) return;
-      await Future.delayed(const Duration(milliseconds: 100));
-      if (!_isAutoReadingEnabled) return;
-      
-      await readProtectionInfo();                   // 读取保护信息
-      if (!_isAutoReadingEnabled) return;
-      await Future.delayed(const Duration(milliseconds: 100));
-      if (!_isAutoReadingEnabled) return;
-      
-      await readBatteryStatus();                   // 读取电池状态
-      if (!_isAutoReadingEnabled) return;
-      await Future.delayed(const Duration(milliseconds: 100));
-      if (!_isAutoReadingEnabled) return;
-      
-      // await readMainPageData();                   // 读取主页数据
+        //读取电池串数
+        await readBatteryStringCount();                   // 读取电池串数
+        if (!_isAutoReadingEnabled) return;
+        
+        //读取单体电压
+        await readCellAloneVoltages();                   // 读取单体电压
+        if (!_isAutoReadingEnabled) return;
+        
+        //读取异常信息
+        await readWarningInfo();                   // 读取警告信息
+        if (!_isAutoReadingEnabled) return;
+        
+        await readProtectionInfo();                   // 读取保护信息
+        if (!_isAutoReadingEnabled) return;
+        
+        await readBatteryStatus();                   // 读取电池状态
+        if (!_isAutoReadingEnabled) return;
+        
+        // await readMainPageData();                   // 读取主页数据
+      }
     } catch (e) {
       print('[BatteryDataManager] 读取数据失败: $e');
-    } finally {
-      _isReading = false;
     }
   }
   
   Future<void> readMainPageData() async {
     final requestId = _generateRequestId();
     final request = ModbusRequest.readMainPageData(
+      id: requestId,
+      slaveId: _slaveId,
+    );
+    
+    await _sendRequest(request);
+  }
+
+  // 读取表格1数据 (第二种蓝牙板)
+  Future<void> readTable1Data() async {
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readTable1Data(
+      id: requestId,
+      slaveId: _slaveId,
+    );
+    
+    await _sendRequest(request);
+  }
+
+  // 读取表格2数据 (第二种蓝牙板)
+  Future<void> readTable2Data() async {
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readTable2Data(
+      id: requestId,
+      slaveId: _slaveId,
+    );
+    
+    await _sendRequest(request);
+  }
+
+  // 读取表格3数据 (第二种蓝牙板)
+  Future<void> readTable3Data() async {
+    final requestId = _generateRequestId();
+    final request = ModbusRequest.readTable3Data(
       id: requestId,
       slaveId: _slaveId,
     );
@@ -2218,6 +2238,7 @@ class BatteryDataManager {
     return result;
   }
   
+  // 将请求加入队列
   Future<bool> _sendRequest(ModbusRequest request) async {
     if (!isConnected) {
       print('[BatteryDataManager] 设备未连接，无法发送请求');
@@ -2229,6 +2250,37 @@ class BatteryDataManager {
       return false;
     }
     
+    // 将请求加入队列
+    _requestQueue.add(request);
+    // 开始处理队列
+    _processRequestQueue();
+    return true;
+  }
+  
+  // 处理请求队列
+  void _processRequestQueue() async {
+    if (_isProcessingRequest || _requestQueue.isEmpty) {
+      return;
+    }
+    
+    _isProcessingRequest = true;
+    
+    try {
+      while (_requestQueue.isNotEmpty && _isProcessingRequest) {
+        final request = _requestQueue.removeFirst();
+        await _executeRequest(request);
+        // 等待100ms，防止请求过快
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+    } catch (e) {
+      print('[BatteryDataManager] 处理请求队列失败: $e');
+    } finally {
+      _isProcessingRequest = false;
+    }
+  }
+  
+  // 执行单个请求
+  Future<void> _executeRequest(ModbusRequest request) async {
     Uint8List command;
     
     if (request.isRead) {
@@ -2245,7 +2297,12 @@ class BatteryDataManager {
       );
     } else {
       print('[BatteryDataManager] 无效的请求类型');
-      return false;
+      _updateRequestStatus(request.copyWith(
+        status: ModbusRequestStatus.failed,
+        errorMessage: '无效的请求类型',
+        completedAt: DateTime.now(),
+      ));
+      return;
     }
     
     final updatedRequest = request.copyWith(
@@ -2260,7 +2317,6 @@ class BatteryDataManager {
     try {
       await _bleController.writeData(command);
       print('[BatteryDataManager] 发送命令: ${command.map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}').join(' ')}');
-      return true;
     } catch (e) {
       print('[BatteryDataManager] 发送命令失败: $e');
       _updateRequestStatus(updatedRequest.copyWith(
@@ -2269,7 +2325,6 @@ class BatteryDataManager {
         completedAt: DateTime.now(),
       ));
       _pendingRequests.remove(request.id);
-      return false;
     }
   }
   
@@ -2482,6 +2537,21 @@ class BatteryDataManager {
       case ModbusRequestType.readBatteryStatus:
         print('[BatteryDataManager] 处理电池状态响应 (${bytes.length}字节)');
         _processBatteryStatusResponse(bytes);
+        break;
+        
+      case ModbusRequestType.readTable1Data:
+        print('[BatteryDataManager] 处理表格1数据响应 (${bytes.length}字节)');
+        _processTable1Response(bytes);
+        break;
+        
+      case ModbusRequestType.readTable2Data:
+        print('[BatteryDataManager] 处理表格2数据响应 (${bytes.length}字节)');
+        _processTable2Response(bytes);
+        break;
+        
+      case ModbusRequestType.readTable3Data:
+        print('[BatteryDataManager] 处理表格3数据响应 (${bytes.length}字节)');
+        _processTable3Response(bytes);
         break;
         
       default:
@@ -2720,6 +2790,518 @@ class BatteryDataManager {
     );
     _batteryDataController.add(_currentData);
     print('[BatteryDataManager] 电池状态已更新: 0x${batteryStatus.toRadixString(16).padLeft(4, '0')}');
+  }
+
+  // 处理表格1数据响应 (第二种蓝牙板)
+  void _processTable1Response(List<int> bytes) {
+    print('[BatteryDataManager] 处理表格1数据响应 (${bytes.length}字节)');
+    if (bytes.isEmpty) {
+      return;
+    }
+
+    // 根据表格1结构解析数据
+    int offset = 0;
+    
+    // MOS温度1 (Uint16, K)
+    final mosTemp1 = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 电池温度1 (Uint16, K)
+    final batteryTemp1 = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 电池温度2 (Uint16, K)
+    final batteryTemp2 = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 电池温度3 (Uint16, K)
+    final batteryTemp3 = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 电池组总电压 (Uint32, mv)
+    final totalVoltage = (bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3];
+    offset += 4;
+    
+    // 电池组总电流 (Int32, ma)
+    final totalCurrent = (bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3];
+    final signedCurrent = totalCurrent > 2147483647 ? totalCurrent - 4294967296 : totalCurrent;
+    offset += 4;
+    
+    // 剩余容量 (Uint32, mah)
+    final remainingCapacity = (bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3];
+    offset += 4;
+    
+    // 平衡状态 (Uint32)
+    final balanceStatus = (bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3];
+    offset += 4;
+    
+    // AFE状态① (Uint32)
+    final afeStatus = (bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3];
+    offset += 4;
+    
+    // 报警状态② (Uint16)
+    final alarmStatus = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 电池状态③ (Uint16)
+    final batteryStatus = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 二次电压 (Uint16, 10mv)
+    final secondaryVoltage = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 二次电流 (Int16, 10ma)
+    final secondaryCurrentRaw = (bytes[offset] << 8) | bytes[offset + 1];
+    final signedSecondaryCurrent = secondaryCurrentRaw > 32767 ? secondaryCurrentRaw - 65536 : secondaryCurrentRaw;
+    offset += 2;
+    
+    // 二次温度 (Uint16, K)
+    final secondaryTemperature = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 固件版本 (Uint16)
+    final firmwareVersion = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 健康百分比 (Uint16)
+    final healthPercent = (bytes[offset] << 8) | bytes[offset + 1];
+    final soh = (healthPercent >> 8) & 0xFF;
+    final soc = healthPercent & 0xFF;
+    offset += 2;
+    
+    // RTC的year mouth (Uint16)
+    final rtcYearMonth = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // RTC的day hour (Uint16)
+    final rtcDayHour = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // RTC的minute second (Uint16)
+    final rtcMinuteSecond = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 电池组串数和电池类型 (Uint16)
+    final cellNumberType = (bytes[offset] << 8) | bytes[offset + 1];
+    final cellNumber = (cellNumberType >> 8) & 0xFF;
+    final cellType = cellNumberType & 0xFF;
+    offset += 2;
+    
+    // 模拟前端代号和客户代号 (Uint16)
+    final afeCustomerCode = (bytes[offset] << 8) | bytes[offset + 1];
+    final afeNumber = (afeCustomerCode >> 8) & 0xFF;
+    final customerNumber = afeCustomerCode & 0xFF;
+    offset += 2;
+    
+    // 循环次数 (Uint16)
+    final cycleCount = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 满充容量 (Uint16, 10mah)
+    final fullCapacity10mah = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 设计容量 (Uint16, 10mah)
+    final designCapacity = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 最大的未充电隔间时间 (Uint16, h)
+    final maxUnchargedInterval = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 最近的未充电隔间时间 (Uint16, h)
+    final recentUnchargedInterval = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 功能开关配置寄存器 (Uint16)
+    final functionSwitchConfig = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 电池电压列表
+    final List<double> cellVoltages = [];
+    for (int i = 0; i < cellNumber && offset + 1 < bytes.length; i++) {
+      final voltage = (bytes[offset] << 8) | bytes[offset + 1];
+      cellVoltages.add(voltage.toDouble());
+      offset += 2;
+    }
+    
+    // 更新电池数据
+    _currentData = _currentData.copyWith(
+      soc: soc,
+      soh: soh,
+      cycleCount: cycleCount,
+      voltage: totalVoltage / 1000.0, // 转换为V
+      current: signedCurrent / 1000.0, // 转换为A
+      remainingCapacity: remainingCapacity / 1000.0, // 转换为Ah
+      fullCapacity: fullCapacity10mah / 100.0, // 转换为Ah
+      capacity: designCapacity / 100.0, // 转换为Ah
+      cellCount: cellNumber,
+      cellVoltages: cellVoltages,
+      temperatureCount: 3,
+      temperatures: [batteryTemp1.toDouble(), batteryTemp2.toDouble(), batteryTemp3.toDouble()],
+      mosTemperature: mosTemp1,
+      batteryTemperature1: batteryTemp1.toDouble(),
+      batteryTemperature2: batteryTemp2.toDouble(),
+      batteryTemperatureMos: mosTemp1.toDouble(),
+      balanceStatus: balanceStatus,
+      afeStatus: afeStatus,
+      alarmStatus: alarmStatus,
+      batteryStatus: batteryStatus,
+      secondaryVoltage: secondaryVoltage / 10.0, // 转换为V
+      secondaryCurrent: signedSecondaryCurrent / 10.0, // 转换为A
+      secondaryTemperature: secondaryTemperature,
+      firmwareVersion: firmwareVersion,
+      rtcYearMonth: rtcYearMonth,
+      rtcDayHour: rtcDayHour,
+      rtcMinuteSecond: rtcMinuteSecond,
+      cellType: cellType,
+      afeNumber: afeNumber,
+      customerNumber: customerNumber,
+      cycleCount10mah: cycleCount,
+      fullCapacity10mah: fullCapacity10mah,
+      designCapacity: designCapacity,
+      maxUnchargedInterval: maxUnchargedInterval,
+      recentUnchargedInterval: recentUnchargedInterval,
+      functionSwitchConfig: functionSwitchConfig,
+      timestamp: DateTime.now(),
+    );
+    
+    _batteryDataController.add(_currentData);
+    print('[BatteryDataManager] 表格1数据已更新');
+  }
+
+  // 处理表格2数据响应 (第二种蓝牙板)
+  void _processTable2Response(List<int> bytes) {
+    print('[BatteryDataManager] 处理表格2数据响应 (${bytes.length}字节)');
+    if (bytes.isEmpty) {
+      return;
+    }
+
+    int offset = 0;
+    
+    // 电池组串数 (Uint16, s)
+    final cellNumber = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 电池类型 (Uint16, -)
+    final cellType = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 模拟前端代号 (Uint16, -)
+    final afeNumber = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 客户代号 (Uint16, -)
+    final customerNumber = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 硬件版本 (Uint16, -)
+    final hardwareVersion = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 开关配置寄存器 (Uint16, -)
+    final functionConfig = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 休眠延时 (Uint16, s)
+    final sleepDelay = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 关机延时 (Uint16, s)
+    final shutdownDelay = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 额定充电电压 (Uint16, 10mv)
+    final ratedChargeVoltage = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 额定充电电流 (Int16, 10ma)
+    final ratedChargeCurrentRaw = (bytes[offset] << 8) | bytes[offset + 1];
+    final ratedChargeCurrent = ratedChargeCurrentRaw > 32767 ? ratedChargeCurrentRaw - 65536 : ratedChargeCurrentRaw;
+    offset += 2;
+    
+    // 满充电压(单节) (Uint16, mv)
+    final fullChargeVoltage = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 满充电流 (Int16, ma)
+    final fullChargeCurrentRaw = (bytes[offset] << 8) | bytes[offset + 1];
+    final fullChargeCurrent = fullChargeCurrentRaw > 32767 ? fullChargeCurrentRaw - 65536 : fullChargeCurrentRaw;
+    offset += 2;
+    
+    // 满充延时 (Uint16, s)
+    final fullChargeDelay = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 零电流显示阈值 (Int16, ma)
+    final zeroCurrentThresholdRaw = (bytes[offset] << 8) | bytes[offset + 1];
+    final zeroCurrentThreshold = zeroCurrentThresholdRaw > 32767 ? zeroCurrentThresholdRaw - 65536 : zeroCurrentThresholdRaw;
+    offset += 2;
+    
+    // 采样电阻值 (float, mΩ)
+    final sampleResistance = _registersToFloat(bytes.sublist(offset, offset + 4));
+    offset += 4;
+    
+    // 过充保护电压 (Uint16, mv)
+    final overchargeProtectVoltage = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 过充恢复电压 (Uint16, mv)
+    final overchargeRecoverVoltage = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 过充延时 (Uint16, ms)
+    final overchargeDelay = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 低压禁充电电压 (Uint16, mv)
+    final lowVoltageForbidCharge = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 均衡启动电压 (Uint16, mv)
+    final balanceStartVoltage = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 均衡启动阈值 (Uint16, mv)
+    final balanceStartThreshold = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 均衡延时 (Uint16, ms)
+    final balanceDelay = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 过放保护电压 (Uint16, mv)
+    final overdischargeProtectVoltage = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 过放恢复电压 (Uint16, mv)
+    final overdischargeRecoverVoltage = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 过放延时 (Uint16, ms)
+    final overdischargeDelay = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 放电过流1保护电流 (Uint16, A)
+    final dischargeOvercurrent1Protect = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 放电过流1延时 (Uint16, ms)
+    final dischargeOvercurrent1Delay = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 放电过流2保护电流 (Uint16, A)
+    final dischargeOvercurrent2Protect = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 放电过流2延时 (Uint16, ms)
+    final dischargeOvercurrent2Delay = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 短路保护电流 (Uint16, A)
+    final shortCircuitProtect = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 短路保护延时 (Uint16, us)
+    final shortCircuitDelay = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 充电过流保护电流 (Uint16, A)
+    final chargeOvercurrentProtect = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 充电过流延时 (Uint16, ms)
+    final chargeOvercurrentDelay = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 充电高温保护 (int16, ℃)
+    final chargeHighTempProtectRaw = (bytes[offset] << 8) | bytes[offset + 1];
+    final chargeHighTempProtect = chargeHighTempProtectRaw > 32767 ? chargeHighTempProtectRaw - 65536 : chargeHighTempProtectRaw;
+    offset += 2;
+    
+    // 充电高温恢复 (int16, ℃)
+    final chargeHighTempRecoverRaw = (bytes[offset] << 8) | bytes[offset + 1];
+    final chargeHighTempRecover = chargeHighTempRecoverRaw > 32767 ? chargeHighTempRecoverRaw - 65536 : chargeHighTempRecoverRaw;
+    offset += 2;
+    
+    // 充电低温保护 (int16, ℃)
+    final chargeLowTempProtectRaw = (bytes[offset] << 8) | bytes[offset + 1];
+    final chargeLowTempProtect = chargeLowTempProtectRaw > 32767 ? chargeLowTempProtectRaw - 65536 : chargeLowTempProtectRaw;
+    offset += 2;
+    
+    // 充电低温恢复 (int16, ℃)
+    final chargeLowTempRecoverRaw = (bytes[offset] << 8) | bytes[offset + 1];
+    final chargeLowTempRecover = chargeLowTempRecoverRaw > 32767 ? chargeLowTempRecoverRaw - 65536 : chargeLowTempRecoverRaw;
+    offset += 2;
+    
+    // 放电高温保护 (int16, ℃)
+    final dischargeHighTempProtectRaw = (bytes[offset] << 8) | bytes[offset + 1];
+    final dischargeHighTempProtect = dischargeHighTempProtectRaw > 32767 ? dischargeHighTempProtectRaw - 65536 : dischargeHighTempProtectRaw;
+    offset += 2;
+    
+    // 放电高温恢复 (int16, ℃)
+    final dischargeHighTempRecoverRaw = (bytes[offset] << 8) | bytes[offset + 1];
+    final dischargeHighTempRecover = dischargeHighTempRecoverRaw > 32767 ? dischargeHighTempRecoverRaw - 65536 : dischargeHighTempRecoverRaw;
+    offset += 2;
+    
+    // 放电低温保护 (int16, ℃)
+    final dischargeLowTempProtectRaw = (bytes[offset] << 8) | bytes[offset + 1];
+    final dischargeLowTempProtect = dischargeLowTempProtectRaw > 32767 ? dischargeLowTempProtectRaw - 65536 : dischargeLowTempProtectRaw;
+    offset += 2;
+    
+    // 放电低温恢复 (int16, ℃)
+    final dischargeLowTempRecoverRaw = (bytes[offset] << 8) | bytes[offset + 1];
+    final dischargeLowTempRecover = dischargeLowTempRecoverRaw > 32767 ? dischargeLowTempRecoverRaw - 65536 : dischargeLowTempRecoverRaw;
+    offset += 2;
+    
+    // MOS放电高温保护 (int16, ℃)
+    final mosDischargeHighTempProtectRaw = (bytes[offset] << 8) | bytes[offset + 1];
+    final mosDischargeHighTempProtect = mosDischargeHighTempProtectRaw > 32767 ? mosDischargeHighTempProtectRaw - 65536 : mosDischargeHighTempProtectRaw;
+    offset += 2;
+    
+    // MOS放电高温恢复 (int16, ℃)
+    final mosDischargeHighTempRecoverRaw = (bytes[offset] << 8) | bytes[offset + 1];
+    final mosDischargeHighTempRecover = mosDischargeHighTempRecoverRaw > 32767 ? mosDischargeHighTempRecoverRaw - 65536 : mosDischargeHighTempRecoverRaw;
+    offset += 2;
+    
+    // 电池SN (string, 12字节)
+    final batterySN = String.fromCharCodes(bytes.sublist(offset, offset + 12)).trim();
+    offset += 12;
+    
+    // 制造厂家 (string, 8字节)
+    final manufacturer = String.fromCharCodes(bytes.sublist(offset, offset + 8)).trim();
+    offset += 8;
+    
+    // 制造厂商型号 (string, 24字节)
+    final manufacturerModel = String.fromCharCodes(bytes.sublist(offset, offset + 24)).trim();
+    offset += 24;
+    
+    // 客户名称 (string, 8字节)
+    final customerName = String.fromCharCodes(bytes.sublist(offset, offset + 8)).trim();
+    offset += 8;
+    
+    // 客户型号 (string, 24字节)
+    final customerModel = String.fromCharCodes(bytes.sublist(offset, offset + 24)).trim();
+    offset += 24;
+    
+    // 生产日期 (string, 8字节)
+    final mfgDate = String.fromCharCodes(bytes.sublist(offset, offset + 8)).trim();
+    offset += 8;
+    
+    // 更新电池数据
+    _currentData = _currentData.copyWith(
+      cellNumber: cellNumber,
+      cellType: cellType,
+      afeNumber: afeNumber,
+      customerNumber: customerNumber,
+      functionSwitchConfig: functionConfig,
+      batterySN: batterySN,
+      manufacturer: manufacturer,
+      manufacturerModel: manufacturerModel,
+      customerName: customerName,
+      customerModel: customerModel,
+      mfgDate: mfgDate,
+      timestamp: DateTime.now(),
+    );
+    
+    _batteryDataController.add(_currentData);
+    print('[BatteryDataManager] 表格2数据已更新');
+  }
+
+  // 处理表格3数据响应 (第二种蓝牙板)
+  void _processTable3Response(List<int> bytes) {
+    print('[BatteryDataManager] 处理表格3数据响应 (${bytes.length}字节)');
+    if (bytes.isEmpty) {
+      return;
+    }
+
+    int offset = 0;
+    
+    // 设计循环次数 (Uint16)
+    final designCycleCount = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 循环次数 (Uint16)
+    final cycleCount = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 满充容量 (Uint32, mah)
+    final fullCapacity = (bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3];
+    offset += 4;
+    
+    // 设计容量 (Uint32, mah)
+    final designCapacity = (bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3];
+    offset += 4;
+    
+    // 最大的未充电隔间时间 (Uint16, h)
+    final maxUnchargedInterval = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // 最近的未充电隔间时间 (Uint16, h)
+    final recentUnchargedInterval = (bytes[offset] << 8) | bytes[offset + 1];
+    offset += 2;
+    
+    // BT码 (string, 32字节)
+    final btCode = String.fromCharCodes(bytes.sublist(offset, offset + 32)).trim();
+    offset += 32;
+    
+    // 解析24个保护时间
+    final protectionTimes = <String>[];
+    for (int i = 0; i < 24 && offset + 3 < bytes.length; i++) {
+      final a = (bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3];
+      offset += 4;
+      
+      if (a == 0) {
+        protectionTimes.add('');
+        continue;
+      }
+      
+      final year = ((a & 0xFC000000) >> 26) + 2022;
+      final month = (a & 0x03C00000) >> 22;
+      final day = (a & 0x003E0000) >> 17;
+      final hour = (a & 0x0001F000) >> 12;
+      final minute = (a & 0x00000FC0) >> 6;
+      final second = a & 0x0000003F;
+      
+      final timeStr = '${year}-${month.toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')} ' 
+                    '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}:${second.toString().padLeft(2, '0')}';
+      
+      protectionTimes.add(timeStr);
+      print('[BatteryDataManager] [Protection] 保护时间 ${i + 1}: $timeStr');
+    }
+    
+    // 解析24个保护事件
+    final protectionEvents = <String>[];
+    for (int i = 0; i < 24 && offset + 3 < bytes.length; i++) {
+      final a = (bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3];
+      offset += 4;
+      
+      if (a == 0) {
+        protectionEvents.add('');
+        continue;
+      }
+      
+      final eventStr = '0x${a.toRadixString(16).padLeft(8, '0').toUpperCase()}';
+      
+      protectionEvents.add(eventStr);
+      print('[BatteryDataManager] [Protection] 保护事件 ${i + 1}: $eventStr');
+    }
+    
+    // 更新电池数据
+    _currentData = _currentData.copyWith(
+      designCycleCount: designCycleCount,
+      cycleCount: cycleCount,
+      fullCapacity: fullCapacity / 1000.0, // 转换为Ah
+      capacity: designCapacity / 1000.0, // 转换为Ah
+      maxUnchargedInterval: maxUnchargedInterval,
+      recentUnchargedInterval: recentUnchargedInterval,
+      btCode: btCode,
+      timestamp: DateTime.now(),
+    );
+    
+    _batteryDataController.add(_currentData);
+    print('[BatteryDataManager] 表格3数据已更新');
   }
   
   void _processMainPageDataResponse(List<int> bytes) {

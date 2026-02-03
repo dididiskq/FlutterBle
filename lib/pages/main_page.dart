@@ -2,12 +2,14 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:ultra_bms/bluetooth/ble_controller.dart';
 import 'package:ultra_bms/managers/battery_data_manager.dart';
 import 'package:ultra_bms/models/battery_data.dart';
 import 'package:ultra_bms/pages/device_list_page.dart';
 import 'package:ultra_bms/pages/scan_page.dart';
 import 'package:ultra_bms/pages/alarm_info_page.dart';
+import 'package:ultra_bms/managers/language_manager.dart';
 
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
@@ -238,487 +240,205 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
   
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(60.0),
-        child: Container(
-          color: Colors.black, // 设置背景色为黑色，与底部导航栏一致
-          padding: const EdgeInsets.fromLTRB(10.0, 44.0, 10.0, 10.0), // 调整padding避开状态栏
-          alignment: Alignment.bottomCenter, // 垂直对齐到底部
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // 左侧设备列表按钮
-              Expanded(
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black,
-                      foregroundColor: Colors.white,
-                      side: const BorderSide(color: Colors.red, width: 2),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(5.0),
-                      ),
-                    ),
-                    onPressed: () async {
-                      final result = await Navigator.push(
-                        context, 
-                        MaterialPageRoute(builder: (context) => const DeviceListPage()),
-                      );
-                      if (result != null && result is String) {
-                        _updateDeviceInfo(result);
-                      }
-                    },
-                    child: const Text('设备列表'),
-                  ),
-                ),
-              ),
-              // ultra bms标签
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 8.0),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.red, width: 2),
-                  borderRadius: BorderRadius.circular(5.0),
-                ),
-                child: const Text(
-                  'Ultra Bms',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18.0,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              // 右侧扫一扫按钮
-              Expanded(
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black,
-                      foregroundColor: Colors.white,
-                      side: const BorderSide(color: Colors.red, width: 2),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(5.0),
-                      ),
-                    ),
-                    onPressed: () async {
-                      final result = await Navigator.push(
-                        context, 
-                        MaterialPageRoute(builder: (context) => const ScanPage()),
-                      );
-                      if (result != null && result is String) {
-                        _updateDeviceInfo(result);
-                      }
-                    },
-                    child: const Text('扫一扫'),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      body: Container(
-        color: const Color(0xFF0A1128),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20.0, 20.0, 20.0, 80.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // 设备连接状态
-              Container(
-                margin: const EdgeInsets.only(bottom: 20.0),
-                padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1A2332),
-                  borderRadius: BorderRadius.circular(10.0),
-                  border: Border.all(color: isConnected ? Colors.green : Colors.red, width: 2),
-                ),
-                child: Text(
-                  deviceName,
-                  style: TextStyle(
-                    color: isConnected ? Colors.green : Colors.red,
-                    fontSize: 18.0,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-
-              // SOC仪表盘
-              SizedBox(
-                height: 300.0,
-                width: 300.0,
-                child: CustomPaint(
-                  painter: _SOCGaugePainter(socValue),
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'SOC',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 24.0,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          '${socValue.toStringAsFixed(0)}%',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 48.0,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              
-              // 总容量和总功率
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+    return Consumer<LanguageManager>(
+      builder: (context, languageManager, child) {
+        return Scaffold(
+          appBar: PreferredSize(
+            preferredSize: const Size.fromHeight(55.0),
+            child: Container(
+              color: Colors.black, // 设置背景色为黑色，与底部导航栏一致
+              padding: const EdgeInsets.fromLTRB(10.0, 44.0, 10.0, 10.0), // 调整padding避开状态栏
+              alignment: Alignment.bottomCenter, // 垂直对齐到底部
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(15.0),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1A2332),
-                      borderRadius: BorderRadius.circular(10.0),
-                    ),
-                    child: Column(
-                      children: [
-                        Text(
-                          '总容量',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14.0,
-                          ),
-                        ),
-                        Text(
-                          '${totalCapacity.toStringAsFixed(2)}AH',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18.0,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.all(15.0),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1A2332),
-                      borderRadius: BorderRadius.circular(10.0),
-                    ),
-                    child: Column(
-                      children: [
-                        Text(
-                          '总功率',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14.0,
-                          ),
-                        ),
-                        Text(
-                          '${totalPower.toStringAsFixed(2)}W',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18.0,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              
-              const SizedBox(height: 20.0),
-              
-              // 电压和电流仪表盘
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  // 电压仪表盘
+                  // 左侧设备列表按钮
                   Expanded(
                     child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 5.0),
-                      height: 150.0,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1A2332),
-                        borderRadius: BorderRadius.circular(15.0),
-                        border: Border.all(color: Colors.purple, width: 2),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.bolt,
-                            color: Colors.purple,
-                            size: 40.0,
+                      alignment: Alignment.centerLeft,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.black,
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Colors.white, width: 1),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(5.0),
                           ),
-                          Text(
-                            '电压',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14.0,
-                            ),
+                          padding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 16.0),
+                          minimumSize: const Size.fromWidth(double.infinity),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          textStyle: const TextStyle(
+                            fontSize: 20.0,
+                            fontWeight: FontWeight.bold,
                           ),
-                          Text(
-                            '${totalVoltage.toStringAsFixed(1)}V',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 24.0,
+                        ),
+                        onPressed: () async {
+                          final result = await Navigator.push(
+                            context, 
+                            MaterialPageRoute(builder: (context) => const DeviceListPage()),
+                          );
+                          if (result != null && result is String) {
+                            _updateDeviceInfo(result);
+                          }
+                        },
+                        child: FittedBox(
+                          fit: BoxFit.contain,
+                          child: Text(
+                            languageManager.deviceListButtonText,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 20.0,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
-                  
-                  // 充电放电MOS
-                  Expanded(
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 5.0),
-                      height: 150.0,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1A2332),
-                        borderRadius: BorderRadius.circular(15.0),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Column(
-                            children: [
-                              const Text(
-                                '充电MOS',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12.0,
-                                ),
-                              ),
-                              Icon(
-                                Icons.circle,
-                                color: _batteryDataManager.currentData.chargeMosOn ? Colors.green : Colors.red,
-                                size: 20.0,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10.0),
-                          Column(
-                            children: [
-                              const Text(
-                                '放电MOS',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12.0,
-                                ),
-                              ),
-                              Icon(
-                                Icons.circle,
-                                color: _batteryDataManager.currentData.dischargeMosOn ? Colors.green : Colors.red,
-                                size: 20.0,
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+                  // ultra bms标签
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 8.0),
+                    decoration: BoxDecoration(
+                      // border: Border.all(color: Colors.red, width: 1),
+                      // borderRadius: BorderRadius.circular(5.0),
                     ),
-                  ),
-                  
-                  // 电流仪表盘
-                  Expanded(
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 5.0),
-                      height: 150.0,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1A2332),
-                        borderRadius: BorderRadius.circular(15.0),
-                        border: Border.all(color: Colors.yellow, width: 2),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.arrow_right,
-                            color: Colors.yellow,
-                            size: 40.0,
-                          ),
-                          Text(
-                            '电流',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14.0,
-                            ),
-                          ),
-                          Text(
-                            '${totalCurrent.toStringAsFixed(1)}A',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 24.0,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              
-              const SizedBox(height: 20.0),
-              
-              // 温度信息
-              Container(
-                padding: const EdgeInsets.all(20.0),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1A2332),
-                  borderRadius: BorderRadius.circular(15.0),
-                ),
-                child: Column(
-                  children: [
-                    const Text(
-                      '电池温度',
+                    child: const Text(
+                      'Ultra Bms',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: Colors.blue,
+                        fontSize: 22.0,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  // 右侧扫一扫按钮
+                  Expanded(
+                    child: Container(
+                      alignment: Alignment.centerRight,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.black,
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Colors.white, width: 1),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(5.0),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 16.0),
+                          minimumSize: const Size.fromWidth(double.infinity),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          textStyle: const TextStyle(
+                            fontSize: 20.0,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        onPressed: () async {
+                          final result = await Navigator.push(
+                            context, 
+                            MaterialPageRoute(builder: (context) => const ScanPage()),
+                          );
+                          if (result != null && result is String) {
+                            _updateDeviceInfo(result);
+                          }
+                        },
+                        child: FittedBox(
+                          fit: BoxFit.contain,
+                          child: Text(
+                            languageManager.scanButtonText,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 20.0,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          body: Container(
+            color: const Color(0xFF0A1128),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20.0, 20.0, 20.0, 80.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // 设备连接状态
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 20.0),
+                    padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A2332),
+                      borderRadius: BorderRadius.circular(10.0),
+                      border: Border.all(color: isConnected ? Colors.green : Colors.red, width: 2),
+                    ),
+                    child: Text(
+                      deviceName,
+                      style: TextStyle(
+                        color: isConnected ? Colors.green : Colors.red,
                         fontSize: 18.0,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: 15.0),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        Column(
-                          children: [
-                            const Icon(
-                              Icons.thermostat,
-                              color: Colors.white,
-                              size: 30.0,
-                            ),
-                            const SizedBox(height: 5.0),
-                            const Text(
-                              'T1',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 14.0,
-                              ),
-                            ),
-                            Text(
-                              '${t1Temp.toStringAsFixed(1)}°C',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16.0,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Column(
-                          children: [
-                            const Icon(
-                              Icons.thermostat,
-                              color: Colors.white,
-                              size: 30.0,
-                            ),
-                            const SizedBox(height: 5.0),
-                            const Text(
-                              'T2',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 14.0,
-                              ),
-                            ),
-                            Text(
-                              '${t2Temp.toStringAsFixed(1)}°C',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16.0,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Column(
-                          children: [
-                            const Icon(
-                              Icons.thermostat,
-                              color: Colors.white,
-                              size: 30.0,
-                            ),
-                            const SizedBox(height: 5.0),
-                            const Text(
-                              'MOS',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 14.0,
-                              ),
-                            ),
-                            Text(
-                              '${mosTemp.toStringAsFixed(1)}°C',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16.0,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              
-              const SizedBox(height: 20.0),
-              
-              // 异常信息
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const AlarmInfoPage(),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 5.0),
-                        height: 100.0,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1A2332),
-                          borderRadius: BorderRadius.circular(15.0),
-                        ),
+                  ),
+
+                  // SOC仪表盘
+                  SizedBox(
+                    height: 300.0,
+                    width: 300.0,
+                    child: CustomPaint(
+                      painter: _SOCGaugePainter(socValue),
+                      child: Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(
-                              Icons.warning,
-                              color: alarmCount > 0 ? Colors.red : Colors.green,
-                              size: 30.0,
-                            ),
-                            const SizedBox(height: 5.0),
-                            const Text(
-                              '异常警报',
+                            Text(
+                              'SOC',
                               style: TextStyle(
                                 color: Colors.white,
-                                fontSize: 12.0,
+                                fontSize: 24.0,
+                                fontWeight: FontWeight.bold,
                               ),
-                              textAlign: TextAlign.center,
                             ),
                             Text(
-                              '$alarmCount',
+                              '${socValue.toStringAsFixed(0)}%',
                               style: TextStyle(
-                                color: alarmCount > 0 ? Colors.red : Colors.green,
+                                color: Colors.white,
+                                fontSize: 48.0,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  
+                  // 总容量和总功率
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(15.0),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1A2332),
+                          borderRadius: BorderRadius.circular(10.0),
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              languageManager.totalCapacity,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14.0,
+                              ),
+                            ),
+                            Text(
+                              '${totalCapacity.toStringAsFixed(2)}AH',
+                              style: TextStyle(
+                                color: Colors.white,
                                 fontSize: 18.0,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -726,88 +446,408 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
                           ],
                         ),
                       ),
+                      Container(
+                        padding: const EdgeInsets.all(15.0),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1A2332),
+                          borderRadius: BorderRadius.circular(10.0),
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              languageManager.power,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14.0,
+                              ),
+                            ),
+                            Text(
+                              '${totalPower.toStringAsFixed(2)}W',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18.0,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 20.0),
+                  
+                  // 电压和电流仪表盘
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      // 电压仪表盘
+                      Expanded(
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 5.0),
+                          height: 150.0,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1A2332),
+                            borderRadius: BorderRadius.circular(15.0),
+                            border: Border.all(color: Colors.purple, width: 2),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.bolt,
+                                color: Colors.purple,
+                                size: 40.0,
+                              ),
+                              Text(
+                                languageManager.voltage,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14.0,
+                                ),
+                              ),
+                              Text(
+                                '${totalVoltage.toStringAsFixed(1)}V',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 24.0,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      
+                      // 充电放电MOS
+                      Expanded(
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 5.0),
+                          height: 150.0,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1A2332),
+                            borderRadius: BorderRadius.circular(15.0),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Column(
+                                children: [
+                                  Text(
+                                    languageManager.chargeMos,
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12.0,
+                                    ),
+                                  ),
+                                  Icon(
+                                    Icons.circle,
+                                    color: _batteryDataManager.currentData.chargeMosOn ? Colors.green : Colors.red,
+                                    size: 20.0,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10.0),
+                              Column(
+                                children: [
+                                  Text(
+                                    languageManager.dischargeMos,
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12.0,
+                                    ),
+                                  ),
+                                  Icon(
+                                    Icons.circle,
+                                    color: _batteryDataManager.currentData.dischargeMosOn ? Colors.green : Colors.red,
+                                    size: 20.0,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      
+                      // 电流仪表盘
+                      Expanded(
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 5.0),
+                          height: 150.0,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1A2332),
+                            borderRadius: BorderRadius.circular(15.0),
+                            border: Border.all(color: Colors.yellow, width: 2),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.arrow_right,
+                                color: Colors.yellow,
+                                size: 40.0,
+                              ),
+                              Text(
+                                languageManager.current,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14.0,
+                                ),
+                              ),
+                              Text(
+                                '${totalCurrent.toStringAsFixed(1)}A',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 24.0,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 20.0),
+                  
+                  // 温度信息
+                  Container(
+                    padding: const EdgeInsets.all(20.0),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A2332),
+                      borderRadius: BorderRadius.circular(15.0),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          languageManager.batteryTemperature,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18.0,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 15.0),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            Column(
+                              children: [
+                                const Icon(
+                                  Icons.thermostat,
+                                  color: Colors.white,
+                                  size: 30.0,
+                                ),
+                                const SizedBox(height: 5.0),
+                                Text(
+                                  'T1',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14.0,
+                                  ),
+                                ),
+                                Text(
+                                  '${t1Temp.toStringAsFixed(1)}°C',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16.0,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Column(
+                              children: [
+                                const Icon(
+                                  Icons.thermostat,
+                                  color: Colors.white,
+                                  size: 30.0,
+                                ),
+                                const SizedBox(height: 5.0),
+                                Text(
+                                  'T2',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14.0,
+                                  ),
+                                ),
+                                Text(
+                                  '${t2Temp.toStringAsFixed(1)}°C',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16.0,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Column(
+                              children: [
+                                const Icon(
+                                  Icons.thermostat,
+                                  color: Colors.white,
+                                  size: 30.0,
+                                ),
+                                const SizedBox(height: 5.0),
+                                Text(
+                                  'MOS',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14.0,
+                                  ),
+                                ),
+                                Text(
+                                  '${mosTemp.toStringAsFixed(1)}°C',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16.0,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                  Expanded(
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 5.0),
-                      height: 100.0,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1A2332),
-                        borderRadius: BorderRadius.circular(15.0),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.refresh,
-                            color: Colors.blue,
-                            size: 30.0,
-                          ),
-                          const SizedBox(height: 5.0),
-                          const Text(
-                            '循环次数',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 12.0,
+                  
+                  const SizedBox(height: 20.0),
+                  
+                  // 异常信息
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const AlarmInfoPage(),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 5.0),
+                            height: 100.0,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1A2332),
+                              borderRadius: BorderRadius.circular(15.0),
                             ),
-                            textAlign: TextAlign.center,
-                          ),
-                          Text(
-                            '$cycleCount',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 18.0,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 5.0),
-                      height: 100.0,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1A2332),
-                        borderRadius: BorderRadius.circular(15.0),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.bolt,
-                            color: Colors.yellow,
-                            size: 30.0,
-                          ),
-                          const SizedBox(height: 5.0),
-                          const Text(
-                            '压差',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 12.0,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          Text(
-                            '${voltageDiff.toStringAsFixed(3)}V',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 18.0,
-                              fontWeight: FontWeight.bold,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.warning,
+                                  color: alarmCount > 0 ? Colors.red : Colors.green,
+                                  size: 30.0,
+                                ),
+                                const SizedBox(height: 5.0),
+                                Text(
+                                  languageManager.abnormalAlarm,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12.0,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                Text(
+                                  '$alarmCount',
+                                  style: TextStyle(
+                                    color: alarmCount > 0 ? Colors.red : Colors.green,
+                                    fontSize: 18.0,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
+                        ),
                       ),
-                    ),
+                      Expanded(
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 5.0),
+                          height: 100.0,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1A2332),
+                            borderRadius: BorderRadius.circular(15.0),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.refresh,
+                                color: Colors.blue,
+                                size: 30.0,
+                              ),
+                              const SizedBox(height: 5.0),
+                              Text(
+                                languageManager.cycleCount,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12.0,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              Text(
+                                '$cycleCount',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18.0,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 5.0),
+                          height: 100.0,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1A2332),
+                            borderRadius: BorderRadius.circular(15.0),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.bolt,
+                                color: Colors.yellow,
+                                size: 30.0,
+                              ),
+                              const SizedBox(height: 5.0),
+                              Text(
+                                languageManager.voltageDiff,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12.0,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              Text(
+                                '${voltageDiff.toStringAsFixed(3)}V',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18.0,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

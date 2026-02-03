@@ -22,7 +22,7 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.black,
               foregroundColor: Colors.white,
-              side: const BorderSide(color: Colors.red, width: 2),
+              side: const BorderSide(color: Colors.red, width: 1),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(5.0),
               ),
@@ -38,14 +38,14 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 8.0),
             decoration: BoxDecoration(
-              border: Border.all(color: Colors.red, width: 2),
-              borderRadius: BorderRadius.circular(5.0),
+              // border: Border.all(color: Colors.red, width: 1),
+              // borderRadius: BorderRadius.circular(5.0),
             ),
             child: Text(
               title,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 18.0,
+                fontSize: 22.0,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -58,5 +58,5 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
   }
 
   @override
-  Size get preferredSize => const Size.fromHeight(60.0);
+  Size get preferredSize => const Size.fromHeight(55.0);
 }

@@ -18,6 +18,9 @@ enum ModbusRequestType {
   readWarningInfo,     // 读取警告信息
   readProtectionInfo,     // 读取保护信息
   readBatteryStatus,     // 读取电池状态
+  readTable1Data,     // 读取表格1数据 (第二种蓝牙板)
+  readTable2Data,     // 读取表格2数据 (第二种蓝牙板)
+  readTable3Data,     // 读取表格3数据 (第二种蓝牙板)
   writeParameters,      // 写入参数
   custom,               // 自定义请求
 }
@@ -334,6 +337,48 @@ class ModbusRequest {
     );
   }
 
+  // 读取表格1数据 (第二种蓝牙板)
+  factory ModbusRequest.readTable1Data({
+    required String id,
+    int slaveId = 1,
+  }) {
+    return ModbusRequest(
+      id: id,
+      type: ModbusRequestType.readTable1Data,
+      slaveId: slaveId,
+      startAddress: 0x0000,
+      quantity: 0x003F, // 63个寄存器
+    );
+  }
+
+  // 读取表格2数据 (第二种蓝牙板)
+  factory ModbusRequest.readTable2Data({
+    required String id,
+    int slaveId = 1,
+  }) {
+    return ModbusRequest(
+      id: id,
+      type: ModbusRequestType.readTable2Data,
+      slaveId: slaveId,
+      startAddress: 0x0200,
+      quantity: 0x003F, // 63个寄存器
+    );
+  }
+
+  // 读取表格3数据 (第二种蓝牙板)
+  factory ModbusRequest.readTable3Data({
+    required String id,
+    int slaveId = 1,
+  }) {
+    return ModbusRequest(
+      id: id,
+      type: ModbusRequestType.readTable3Data,
+      slaveId: slaveId,
+      startAddress: 0x0400,
+      quantity: 0x003F, // 63个寄存器
+    );
+  }
+
   ModbusRequest copyWith({
     String? id,
     ModbusRequestType? type,
@@ -387,7 +432,10 @@ class ModbusRequest {
       type == ModbusRequestType.readQuickSettings ||
       type == ModbusRequestType.readWarningInfo ||
       type == ModbusRequestType.readProtectionInfo ||
-      type == ModbusRequestType.readBatteryStatus;
+      type == ModbusRequestType.readBatteryStatus ||
+      type == ModbusRequestType.readTable1Data ||
+      type == ModbusRequestType.readTable2Data ||
+      type == ModbusRequestType.readTable3Data;
 
 
 

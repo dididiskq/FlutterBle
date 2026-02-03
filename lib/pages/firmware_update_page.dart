@@ -3,10 +3,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
 import '../bluetooth/ble_controller.dart';
 import '../bluetooth/ota_upgrader.dart';
 import '../components/common_app_bar.dart';
+import '../managers/language_manager.dart';
 
 class FirmwareUpdatePage extends StatefulWidget {
   const FirmwareUpdatePage({super.key});
@@ -25,7 +27,7 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
   String _upgradeMessage = '就绪';
   
   // 服务器地址
-  static const String BASE_URL = "http://10.226.144.227:8000";
+  static const String BASE_URL = "http://10.81.45.227:8000";
   
   // 固件信息
   String _firmwareVersion = 'V1.0.0'; 
@@ -271,49 +273,53 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0A1128),
-      appBar: CommonAppBar(title: '固件升级'),
-      body: Container(
-        color: const Color(0xFF0A1128),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            children: [
-              // 固件版本信息
-              _buildVersionCard('固件版本', _firmwareVersion),
-              const SizedBox(height: 20.0),
-              
-              // 软件版本信息
-              _buildVersionCard('软件版本', _softwareVersion),
-              const SizedBox(height: 30.0),
-              
-              // 检查更新按钮
-              _buildCheckUpdateButton(),
-              
-              const SizedBox(height: 20.0),
-              
-              // 固件更新信息
-              _buildFirmwareUpdateInfo(),
-              
-              if (_selectedFirmwareFile != null) ...[
-                const SizedBox(height: 20.0),
-                _buildSelectedFileInfo(),
-              ],
-              
-              const SizedBox(height: 30.0),
-              
-              // 升级状态和进度
-              _buildOtaStatus(),
-              
-              const SizedBox(height: 30.0),
-              
-              // 升级控制按钮
-              _buildUpgradeControlButtons(),
-            ],
+    return Consumer<LanguageManager>(
+      builder: (context, languageManager, child) {
+        return Scaffold(
+          backgroundColor: const Color(0xFF0A1128),
+          appBar: CommonAppBar(title: languageManager.firmwareUpdatePageTitle),
+          body: Container(
+            color: const Color(0xFF0A1128),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                children: [
+                  // 固件版本信息
+                  _buildVersionCard(languageManager.firmwareVersion, _firmwareVersion),
+                  const SizedBox(height: 20.0),
+                  
+                  // 软件版本信息
+                  _buildVersionCard(languageManager.softwareVersion, _softwareVersion),
+                  const SizedBox(height: 30.0),
+                  
+                  // 检查更新按钮
+                  _buildCheckUpdateButton(languageManager),
+                  
+                  const SizedBox(height: 20.0),
+                  
+                  // 固件更新信息
+                  _buildFirmwareUpdateInfo(languageManager),
+                  
+                  if (_selectedFirmwareFile != null) ...[
+                    const SizedBox(height: 20.0),
+                    _buildSelectedFileInfo(languageManager),
+                  ],
+                  
+                  const SizedBox(height: 30.0),
+                  
+                  // 升级状态和进度
+                  _buildOtaStatus(languageManager),
+                  
+                  const SizedBox(height: 30.0),
+                  
+                  // 升级控制按钮
+                  _buildUpgradeControlButtons(languageManager),
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -338,7 +344,7 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
   }
 
   // 构建检查更新按钮
-  Widget _buildCheckUpdateButton() {
+  Widget _buildCheckUpdateButton(LanguageManager languageManager) {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
@@ -354,13 +360,13 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
           ),
           elevation: 0,
         ),
-        child: const Text('检查更新'),
+        child: Text(languageManager.checkUpdate),
       ),
     );
   }
   
   // 构建下载固件按钮
-  Widget _buildDownloadFirmwareButton() {
+  Widget _buildDownloadFirmwareButton(LanguageManager languageManager) {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
@@ -376,13 +382,13 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
           ),
           elevation: 0,
         ),
-        child: const Text('下载固件'),
+        child: Text(languageManager.downloadFirmware),
       ),
     );
   }
   
   // 构建固件更新信息卡片
-  Widget _buildFirmwareUpdateInfo() {
+  Widget _buildFirmwareUpdateInfo(LanguageManager languageManager) {
     if (!_hasUpdate) {
       return Container();
     }
@@ -398,12 +404,12 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('固件更新信息:', style: TextStyle(color: Colors.white, fontSize: 16.0, fontWeight: FontWeight.bold)),
+          Text(languageManager.firmwareUpdateInfo, style: TextStyle(color: Colors.white, fontSize: 16.0, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12.0),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('当前版本:', style: TextStyle(color: Colors.white, fontSize: 14.0)),
+              Text(languageManager.currentVersion, style: const TextStyle(color: Colors.white, fontSize: 14.0)),
               Text(_firmwareVersion, style: const TextStyle(color: Colors.grey, fontSize: 14.0)),
             ],
           ),
@@ -411,16 +417,16 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('最新版本:', style: TextStyle(color: Colors.white, fontSize: 14.0)),
+              Text(languageManager.latestVersion, style: const TextStyle(color: Colors.white, fontSize: 14.0)),
               Text(_latestVersion, style: const TextStyle(color: Colors.green, fontSize: 14.0, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 12.0),
-          const Text('固件描述:', style: TextStyle(color: Colors.white, fontSize: 14.0)),
+          Text(languageManager.firmwareDescription, style: const TextStyle(color: Colors.white, fontSize: 14.0)),
           const SizedBox(height: 8.0),
           Text(_firmwareDescription, style: const TextStyle(color: Colors.grey, fontSize: 14.0)),
           const SizedBox(height: 16.0),
-          _buildDownloadFirmwareButton(),
+          _buildDownloadFirmwareButton(languageManager),
         ],
       ),
     );
@@ -438,7 +444,7 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
   }
 
   // 构建已选择文件信息
-  Widget _buildSelectedFileInfo() {
+  Widget _buildSelectedFileInfo(LanguageManager languageManager) {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -450,12 +456,12 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('已选择固件文件:', style: TextStyle(color: Colors.white, fontSize: 16.0)),
+          Text(languageManager.selectedFirmwareFile, style: TextStyle(color: Colors.white, fontSize: 16.0)),
           const SizedBox(height: 8.0),
           Text(_selectedFirmwareFile!, style: const TextStyle(color: Colors.blue, fontSize: 14.0)),
           const SizedBox(height: 8.0),
           Text(
-            '固件大小: ${_formatFileSize(_selectedFirmwareSize!)}',
+            '${languageManager.firmwareSize}: ${_formatFileSize(_selectedFirmwareSize!)}',
             style: const TextStyle(color: Colors.grey, fontSize: 14.0),
           ),
         ],
@@ -466,34 +472,34 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
   // 构建统一的OTA状态组件
   // 合并升级状态、进度条和升级消息为一个组件
   // 进度条仅在升级进行中显示
-  Widget _buildOtaStatus() {
+  Widget _buildOtaStatus(LanguageManager languageManager) {
     // 确定状态文本和颜色
     String statusText = '';
     Color statusColor = Colors.grey;
     
     switch (_upgradeStatus) {
       case UpgradeStatus.idle:
-        statusText = '就绪';
+        statusText = languageManager.ready;
         statusColor = Colors.grey;
         break;
       case UpgradeStatus.checkingUpdate:
-        statusText = '检查更新';
+        statusText = languageManager.checkingUpdate;
         statusColor = Colors.blue;
         break;
       case UpgradeStatus.downloading:
-        statusText = '下载中';
+        statusText = languageManager.downloading;
         statusColor = Colors.blue;
         break;
       case UpgradeStatus.upgrading:
-        statusText = '升级中';
+        statusText = languageManager.upgrading;
         statusColor = Colors.orange;
         break;
       case UpgradeStatus.completed:
-        statusText = '升级完成';
+        statusText = languageManager.upgradeCompleted;
         statusColor = Colors.green;
         break;
       case UpgradeStatus.failed:
-        statusText = '升级失败';
+        statusText = languageManager.upgradeFailed;
         statusColor = Colors.red;
         break;
     }
@@ -517,7 +523,7 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('升级状态:', style: TextStyle(color: Colors.white, fontSize: 16.0)),
+              Text(languageManager.upgradeStatus, style: TextStyle(color: Colors.white, fontSize: 16.0)),
               Text(statusText, style: TextStyle(color: statusColor, fontSize: 16.0, fontWeight: FontWeight.bold)),
             ],
           ),
@@ -528,7 +534,7 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('升级进度:', style: TextStyle(color: Colors.white, fontSize: 16.0)),
+                Text(languageManager.upgradeProgress, style: TextStyle(color: Colors.white, fontSize: 16.0)),
                 Text('$_upgradeProgress%', style: const TextStyle(color: Colors.white, fontSize: 16.0)),
               ],
             ),
@@ -557,7 +563,7 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
   }
   
   // 构建升级控制按钮
-  Widget _buildUpgradeControlButtons() {
+  Widget _buildUpgradeControlButtons(LanguageManager languageManager) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
@@ -575,7 +581,7 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
               ),
               elevation: 0,
             ),
-            child: const Text('开始升级'),
+            child: Text(languageManager.startUpgrade),
           ),
         ),
         const SizedBox(width: 20.0),
@@ -593,7 +599,7 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
               ),
               elevation: 0,
             ),
-            child: const Text('取消'),
+            child: Text(languageManager.cancelButtonText),
           ),
         ),
       ],

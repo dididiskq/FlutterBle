@@ -746,24 +746,31 @@ class BleController {
       print('[BLE] ==================== 开始断开设备 ====================');
       print('[BLE] 设备ID: $deviceId');
       
-      // 先取消连接流订阅
-      _connectionSubscription?.cancel();
-      _connectionSubscription = null;
-      print('[BLE] ★★★ 已取消连接流订阅');
+      // 先取消通知订阅
+      if (_notificationSubscription != null) {
+        await _notificationSubscription!.cancel();
+        _notificationSubscription = null;
+        print('[BLE] ★★★ 已取消通知订阅');
+      }
       
-      // 调用flutter_reactive_ble库的disconnect方法主动断开连接
-      // flutter_reactive_ble 没有提供直接的 disconnectDevice 方法，取消连接流订阅即可触发底层断开
-      print('[BLE] ★★★ 已调用库的disconnect方法');
-      
-      // 清理通知订阅
-      _notificationSubscription?.cancel();
-      _notificationSubscription = null;
+      // 取消连接流订阅
+      if (_connectionSubscription != null) {
+        await _connectionSubscription!.cancel();
+        _connectionSubscription = null;
+        print('[BLE] ★★★ 已取消连接流订阅');
+      }
       
       // 重置状态
       _connectedDevice = null;
       _discoveredService = null;
       _commandCharacteristic = null;
       _dataCharacteristic = null;
+      _currentConnectionState = DeviceConnectionState.disconnected;
+      
+      // 重置UUID到默认值
+      _currentServiceUuid = _serviceUuid;
+      _currentWriteUuid = _writeUuid;
+      _currentNotifyUuid = _notifyUuid;
       
       // 发送断开连接设备事件
       _connectedDeviceController.add(BleDevice(
@@ -779,12 +786,134 @@ class BleController {
         connectionState: DeviceConnectionState.disconnected,
         failure: null,
       ));
-      _currentConnectionState = DeviceConnectionState.disconnected;
+      
+      // 强制触发断开连接（通过再次调用connectToDevice并立即取消，确保设备断开）
+      try {
+        final connectionStream = _ble.connectToDevice(
+          id: deviceId,
+          connectionTimeout: const Duration(seconds: 2),
+        );
+        final tempSubscription = connectionStream.listen((_) {});
+        await Future.delayed(const Duration(milliseconds: 100));
+        await tempSubscription.cancel();
+        print('[BLE] ★★★ 已强制触发断开连接');
+      } catch (e) {
+        // 忽略这个操作的错误，因为我们的目标是断开连接
+        print('[BLE] ★★★ 强制断开操作完成');
+      }
+      
+      // 检查断开连接状态，确保设备确实断开
+      await _verifyDisconnection(deviceId);
       
       print('[BLE] ==================== 设备断开完成 ====================');
     } catch (e) {
       print('[BLE] 断开设备连接失败: $e');
+      
+      // 即使出现错误，也要尝试清理资源
+      _cleanupResources(deviceId);
       rethrow;
+    }
+  }
+  
+  /// 验证设备是否已断开连接
+  Future<void> _verifyDisconnection(String deviceId) async {
+    print('[BLE] 开始验证断开连接状态...');
+    
+    const maxAttempts = 5;
+    const delayBetweenAttempts = Duration(milliseconds: 200);
+    
+    for (int attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        // 尝试连接设备，如果连接失败，则说明设备已断开
+        final connectionStream = _ble.connectToDevice(
+          id: deviceId,
+          connectionTimeout: const Duration(milliseconds: 500),
+        );
+        
+        final completer = Completer<bool>();
+        StreamSubscription<ConnectionStateUpdate>? subscription;
+        
+        subscription = connectionStream.listen(
+          (state) {
+            if (state.connectionState == DeviceConnectionState.connected) {
+              // 设备仍可连接，说明未断开
+              completer.complete(false);
+            } else if (state.failure != null) {
+              // 连接失败，说明设备已断开
+              completer.complete(true);
+            }
+          },
+          onError: (error) {
+            // 连接出错，说明设备已断开
+            completer.complete(true);
+          },
+        );
+        
+        final isDisconnected = await completer.future.timeout(
+          const Duration(milliseconds: 800),
+          onTimeout: () => true, // 超时认为已断开
+        );
+        
+        await subscription.cancel();
+        
+        if (isDisconnected) {
+          print('[BLE] ★★★ 设备已成功断开连接');
+          return;
+        } else {
+          print('[BLE] ⚠️ 设备仍可连接，等待重试... (尝试 ${attempt + 1}/$maxAttempts)');
+          await Future.delayed(delayBetweenAttempts);
+        }
+      } catch (e) {
+        // 出现错误，认为设备已断开
+        print('[BLE] ★★★ 设备断开验证成功，错误: $e');
+        return;
+      }
+    }
+    
+    print('[BLE] ⚠️ 设备断开验证超时，继续执行断开流程');
+  }
+  
+  /// 清理资源的辅助方法
+  void _cleanupResources(String deviceId) {
+    try {
+      print('[BLE] 执行资源清理...');
+      
+      // 强制取消所有订阅
+      _notificationSubscription?.cancel();
+      _notificationSubscription = null;
+      
+      _connectionSubscription?.cancel();
+      _connectionSubscription = null;
+      
+      // 强制重置所有状态
+      _connectedDevice = null;
+      _discoveredService = null;
+      _commandCharacteristic = null;
+      _dataCharacteristic = null;
+      _currentConnectionState = DeviceConnectionState.disconnected;
+      
+      // 重置UUID到默认值
+      _currentServiceUuid = _serviceUuid;
+      _currentWriteUuid = _writeUuid;
+      _currentNotifyUuid = _notifyUuid;
+      
+      // 发送断开连接事件
+      _connectedDeviceController.add(BleDevice(
+        id: deviceId,
+        name: '已断开',
+        rssi: 0,
+        isConnected: false,
+      ));
+      
+      _connectionStateController.add(ConnectionStateUpdate(
+        deviceId: deviceId,
+        connectionState: DeviceConnectionState.disconnected,
+        failure: null,
+      ));
+      
+      print('[BLE] 资源清理完成');
+    } catch (cleanupError) {
+      print('[BLE] 资源清理过程中出现错误: $cleanupError');
     }
   }
 

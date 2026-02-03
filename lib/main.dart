@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'navigator.dart';
 import 'pages/splash_page.dart';
 import 'pages/privacy_policy_page.dart';
+import 'managers/language_manager.dart';
 
 void main() {
   // 设置系统UI样式，将状态栏和导航栏颜色设置为透明
@@ -27,12 +29,15 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Ultra bms',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
+    return ChangeNotifierProvider(
+      create: (_) => LanguageManager(),
+      child: MaterialApp(
+        title: 'Ultra bms',
+        theme: ThemeData(
+          primarySwatch: Colors.blue,
+        ),
+        home: const SplashPage(),
       ),
-      home: const SplashPage(),
     );
   }
 }

@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:qr_code_scanner/qr_code_scanner.dart';
 import 'package:ultra_bms/bluetooth/ble_controller.dart';
+import 'package:ultra_bms/managers/language_manager.dart';
 
 class ScanPage extends StatefulWidget {
   const ScanPage({super.key});
@@ -99,7 +101,7 @@ class _ScanPageState extends State<ScanPage> {
       // 权限被拒绝，显示提示
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('摄像头权限被拒绝')),
+          SnackBar(content: Text('摄像头权限被拒绝')),
         );
       });
     }
@@ -315,97 +317,101 @@ class _ScanPageState extends State<ScanPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(60.0),
-        child: Container(
-          color: Colors.black, // 设置背景色为黑色，与底部导航栏一致
-          padding: const EdgeInsets.fromLTRB(10.0, 44.0, 10.0, 10.0),
-          alignment: Alignment.bottomCenter,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // 返回按钮
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black,
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Colors.red, width: 2),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(5.0),
+    return Consumer<LanguageManager>(
+      builder: (context, languageManager, child) {
+        return Scaffold(
+          appBar: PreferredSize(
+            preferredSize: const Size.fromHeight(60.0),
+            child: Container(
+              color: Colors.black, // 设置背景色为黑色，与底部导航栏一致
+              padding: const EdgeInsets.fromLTRB(10.0, 44.0, 10.0, 10.0),
+              alignment: Alignment.bottomCenter,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // 返回按钮
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black,
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.red, width: 2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(5.0),
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    child: Text(languageManager.backButtonText),
                   ),
-                ),
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                child: const Text('返回'),
-              ),
-              // 页面标题
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 8.0),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.red, width: 2),
-                  borderRadius: BorderRadius.circular(5.0),
-                ),
-                child: const Text(
-                  '扫一扫',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18.0,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              // 占位符，保持按钮居中
-              const SizedBox(width: 60),
-            ],
-          ),
-        ),
-      ),
-      body: _isPermissionGranted
-          ? Stack(
-              fit: StackFit.expand,
-              children: [
-                // 二维码扫描预览 - 确保在最底层显示原始画面
-                Positioned.fill(
-                  child: QRView(
-                    key: qrKey,
-                    onQRViewCreated: _onQRViewCreated,
-                    overlay: null, // 完全移除默认覆盖层
-                  ),
-                ),
-                // 自定义扫描框
-                _buildScanFrame(),
-                // 连接状态提示
-                if (_isConnecting)
-                  Positioned(
-                    top: 100,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: Container(
-                        padding: const EdgeInsets.all(20),
-                        color: Colors.black.withOpacity(0.8),
-                        child: Column(
-                          children: [
-                            const CircularProgressIndicator(),
-                            const SizedBox(height: 10),
-                            Text(
-                              _connectionStatus,
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                          ],
-                        ),
+                  // 页面标题
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 8.0),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.red, width: 2),
+                      borderRadius: BorderRadius.circular(5.0),
+                    ),
+                    child: Text(
+                      languageManager.scanPageTitle,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18.0,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
-              ],
-            )
-          : const Center(child: Text('需要摄像头权限')),
+                  // 占位符，保持按钮居中
+                  const SizedBox(width: 60),
+                ],
+              ),
+            ),
+          ),
+          body: _isPermissionGranted
+              ? Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // 二维码扫描预览 - 确保在最底层显示原始画面
+                    Positioned.fill(
+                      child: QRView(
+                        key: qrKey,
+                        onQRViewCreated: _onQRViewCreated,
+                        overlay: null, // 完全移除默认覆盖层
+                      ),
+                    ),
+                    // 自定义扫描框
+                    _buildScanFrame(languageManager),
+                    // 连接状态提示
+                    if (_isConnecting)
+                      Positioned(
+                        top: 100,
+                        left: 0,
+                        right: 0,
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.all(20),
+                            color: Colors.black.withOpacity(0.8),
+                            child: Column(
+                              children: [
+                                const CircularProgressIndicator(),
+                                const SizedBox(height: 10),
+                                Text(
+                                  _connectionStatus,
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                )
+              : Center(child: Text(languageManager.needCameraPermission)),
+        );
+      },
     );
   }
 
-  Widget _buildScanFrame() {  
+  Widget _buildScanFrame(LanguageManager languageManager) {  
     final size = MediaQuery.of(context).size;
     final scanFrameSize = size.width * 0.7;
     final scanFrameOffset = (size.width - scanFrameSize) / 2;
@@ -435,9 +441,9 @@ class _ScanPageState extends State<ScanPage> {
           bottom: 100,
           left: 0,
           right: 0,
-          child: const Center(
+          child: Center(
             child: Text(
-              '请将二维码对准扫描框',
+              languageManager.alignQrCodeToFrame,
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 18,

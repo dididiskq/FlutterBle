@@ -59,6 +59,9 @@ dependencies:
   # Archive package for handling ZIP files
   # 使用与Dart 2.19.6兼容的版本
   archive: ^3.4.10
+  
+  # Provider for state management
+  provider: ^6.0.5
 
 dev_dependencies:
   flutter_test:

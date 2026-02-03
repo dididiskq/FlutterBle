@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../components/common_app_bar.dart';
 import '../components/write_confirm_dialog.dart';
 import '../managers/battery_data_manager.dart';
+import '../managers/language_manager.dart';
 
 // 均衡参数页面
 class BalanceParamsPage extends StatefulWidget {
@@ -219,108 +221,112 @@ class _BalanceParamsPageState extends State<BalanceParamsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar:  CommonAppBar(title: '均衡参数'),
-      body: Container(
-        color: const Color(0xFF0A1128),
-        child: Padding(
-          padding: EdgeInsets.all(20.0),
-          child: Column(
-            children: [
-              // 表头
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Consumer<LanguageManager>(
+      builder: (context, languageManager, child) {
+        return Scaffold(
+          appBar:  CommonAppBar(title: languageManager.balanceParamsTitle),
+          body: Container(
+            color: const Color(0xFF0A1128),
+            child: Padding(
+              padding: EdgeInsets.all(20.0),
+              child: Column(
                 children: [
-                  Expanded(
-                    flex: 2,
-                    child: Text(
-                      '项目',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: Text(
-                      '参数',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 1,
-                    child: Text(
-                      '设定',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 20),
-              // 参数列表
-              Expanded(
-                child: ListView(
-                  children: [
-                    _buildParamRow('均衡启动电压', _balanceStartVoltageController, 'mV', _writeBalanceStartVoltage),
-                    _buildParamRow('均衡启动阈值', _balanceStartThresholdController, 'mV', _writeBalanceStartThreshold),
-                    _buildParamRow('均衡延时', _balanceDelayController, 'ms', _writeBalanceDelay),
-                  ],
-                ),
-              ),
-              // 写入状态显示
-              if (_writeStatus.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 20.0),
-                  child: Container(
-                    padding: const EdgeInsets.all(12.0),
-                    decoration: BoxDecoration(
-                      color: _writeStatusColor.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(8.0),
-                      border: Border.all(color: _writeStatusColor, width: 2),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          _writeStatusColor == Colors.green ? Icons.check_circle : 
-                          _writeStatusColor == Colors.red ? Icons.error : 
-                          Icons.info,
-                          color: _writeStatusColor,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            _writeStatus,
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: _writeStatusColor,
-                              fontWeight: FontWeight.bold,
-                            ),
+                  // 表头
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: Text(
+                          languageManager.item,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
                           ),
                         ),
+                      ),
+                      Expanded(
+                        flex: 2,
+                        child: Text(
+                          languageManager.parameter,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        flex: 1,
+                        child: Text(
+                          languageManager.setting,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 20),
+                  // 参数列表
+                  Expanded(
+                    child: ListView(
+                      children: [
+                        _buildParamRow(languageManager.balanceStartVoltage, _balanceStartVoltageController, 'mV', _writeBalanceStartVoltage, languageManager),
+                        _buildParamRow(languageManager.balanceStartThreshold, _balanceStartThresholdController, 'mV', _writeBalanceStartThreshold, languageManager),
+                        _buildParamRow(languageManager.balanceDelay, _balanceDelayController, 'ms', _writeBalanceDelay, languageManager),
                       ],
                     ),
                   ),
-                ),
-            ],
+                  // 写入状态显示
+                  if (_writeStatus.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 20.0),
+                      child: Container(
+                        padding: const EdgeInsets.all(12.0),
+                        decoration: BoxDecoration(
+                          color: _writeStatusColor.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8.0),
+                          border: Border.all(color: _writeStatusColor, width: 2),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              _writeStatusColor == Colors.green ? Icons.check_circle : 
+                              _writeStatusColor == Colors.red ? Icons.error : 
+                              Icons.info,
+                              color: _writeStatusColor,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                _writeStatus,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: _writeStatusColor,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
   // 构建参数行
-  Widget _buildParamRow(String name, TextEditingController controller, String unit, VoidCallback onWrite) {
+  Widget _buildParamRow(String name, TextEditingController controller, String unit, VoidCallback onWrite, LanguageManager languageManager) {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 10.0),
       child: Container(
@@ -393,7 +399,7 @@ class _BalanceParamsPageState extends State<BalanceParamsPage> {
                     padding: EdgeInsets.symmetric(vertical: 8.0),
                   ),
                   child: Text(
-                    _isWriting ? '写入中...' : '设置',
+                    _isWriting ? languageManager.writing : languageManager.setting,
                     style: TextStyle(
                       fontSize: 16,
                       color: Colors.white,
