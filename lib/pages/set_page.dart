@@ -552,7 +552,7 @@ class _SetPageState extends State<SetPage> {
                                   ? displayVoltages[index] 
                                   : 0.0;
                               final voltageText = voltage > 0 
-                                  ? '${voltage.toStringAsFixed(2)}V' 
+                                  ? '${voltage.toStringAsFixed(3)}V' 
                                   : '--';
                               return _buildCellVoltageItem(index + 1, voltageText);
                             },

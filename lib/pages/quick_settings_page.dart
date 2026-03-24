@@ -244,6 +244,112 @@ class _QuickSettingsPageState extends State<QuickSettingsPage> {
     }
   }
 
+  Future<void> _writeBatteryType(int type) async {
+    if (!_batteryDataManager.isConnected) {
+      setState(() {
+        _writeStatus = '设备未连接，无法写入';
+        _writeStatusColor = Colors.red;
+      });
+      return;
+    }
+    
+    String typeName = '';
+    switch (type) {
+      case 0:
+        typeName = '磷酸铁锂';
+        break;
+      case 1:
+        typeName = '三元';
+        break;
+      case 2:
+        typeName = '钛酸锂';
+        break;
+      case 3:
+        typeName = '钠离子123';
+        break;
+    }
+    
+    final confirmed = await WriteConfirmDialog.show(
+      context,
+      title: '确认写入',
+      parameterName: '电池类型',
+      oldValue: '',
+      newValue: typeName,
+    );
+    
+    if (!confirmed) {
+      return;
+    }
+    
+    setState(() {
+      _isWriting = true;
+      _writeStatus = '正在写入...';
+      _writeStatusColor = Colors.blue;
+    });
+    
+    try {
+      final success = await _batteryDataManager.writeBatteryType(type);
+      setState(() {
+        _isWriting = false;
+        if (success) {
+          _writeStatus = '电池类型写入成功';
+          _writeStatusColor = Colors.green;
+        } else {
+          _writeStatus = '电池类型写入失败';
+          _writeStatusColor = Colors.red;
+        }
+      });
+      
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted) {
+          setState(() {
+            _writeStatus = '';
+            _writeStatusColor = Colors.transparent;
+          });
+        }
+      });
+    } catch (e) {
+      setState(() {
+        _isWriting = false;
+        _writeStatus = '写入出错: $e';
+        _writeStatusColor = Colors.red;
+      });
+      
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted) {
+          setState(() {
+            _writeStatus = '';
+            _writeStatusColor = Colors.transparent;
+          });
+        }
+      });
+    }
+  }
+
+  // 构建电池类型按钮
+  Widget _buildBatteryTypeButton(String text, int type) {
+    return ElevatedButton(
+      onPressed: _isWriting ? null : () => _writeBatteryType(type),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: _isWriting ? Colors.grey : Colors.blue,
+        foregroundColor: Colors.white,
+        side: const BorderSide(color: Colors.red, width: 2),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(5.0),
+        ),
+        padding: EdgeInsets.symmetric(vertical: 12.0),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 14,
+          color: Colors.white,
+        ),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -329,12 +435,47 @@ class _QuickSettingsPageState extends State<QuickSettingsPage> {
                   ),
                 ),
               if (_writeStatus.isNotEmpty) SizedBox(height: 20),
+              
               // 参数列表
-              Expanded(
-                child: ListView(
+              Container(
+                margin: EdgeInsets.only(bottom: 20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildParamRow('电池实际串数', _batterySeriesController, '串'),
                     _buildParamRow('电池物理容量', _batteryCapacityController, 'AH'),
+                  ],
+                ),
+              ),
+              
+              // 电池类型快速设置
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '电池类型快速设置',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    SizedBox(height: 12),
+                    Expanded(
+                      child: GridView.count(
+                        physics: AlwaysScrollableScrollPhysics(),
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
+                        children: [
+                          _buildBatteryTypeButton('一键磷酸铁锂参数', 0),
+                          _buildBatteryTypeButton('一键三元参数', 1),
+                          _buildBatteryTypeButton('一键钛酸锂参数', 2),
+                          _buildBatteryTypeButton('一键钠离子参数', 3),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),

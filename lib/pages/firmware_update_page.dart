@@ -31,7 +31,7 @@ class _FirmwareUpdatePageState extends State<FirmwareUpdatePage> {
   
   // 固件信息
   String _firmwareVersion = 'V1.0.0'; 
-  String _softwareVersion = 'V1.0.0';
+  String _softwareVersion = 'V1.0.1';
   String? _selectedFirmwareFile;
   int? _selectedFirmwareSize; // 存储固件文件大小(字节)
   

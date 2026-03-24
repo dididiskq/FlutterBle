@@ -475,6 +475,17 @@ class BatteryDataManager {
     return success;
   }
 
+  Future<bool> writeBatteryType(int type) async {
+    print('[BatteryDataManager] 写入电池类型: $type');
+    final success = await writeParameters(0x201, [type]);
+    if (success) {
+      print('[BatteryDataManager] 电池类型写入成功');
+    } else {
+      print('[BatteryDataManager] 电池类型写入失败');
+    }
+    return success;
+  }
+
   List<int> _int32ToRegisters(int value) {
     final byteData = ByteData(4)..setInt32(0, value, Endian.big);
     return [

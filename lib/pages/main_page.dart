@@ -366,20 +366,32 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   // 设备连接状态
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 20.0),
-                    padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1A2332),
-                      borderRadius: BorderRadius.circular(10.0),
-                      border: Border.all(color: isConnected ? Colors.green : Colors.red, width: 2),
-                    ),
-                    child: Text(
-                      deviceName,
-                      style: TextStyle(
-                        color: isConnected ? Colors.green : Colors.red,
-                        fontSize: 18.0,
-                        fontWeight: FontWeight.bold,
+                  GestureDetector(
+                    onTap: () {
+                      if (!isConnected) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const DeviceListPage()),
+                        );
+                      }
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 20.0),
+                      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1A2332),
+                        borderRadius: BorderRadius.circular(10.0),
+                        border: Border.all(color: isConnected ? Colors.green : Colors.red, width: 2),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        deviceName,
+                        style: TextStyle(
+                          color: isConnected ? Colors.green : Colors.red,
+                          fontSize: 18.0,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
                     ),
                   ),
