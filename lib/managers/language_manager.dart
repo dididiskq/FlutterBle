@@ -242,6 +242,14 @@ class LanguageManager extends ChangeNotifier {
     }
   }
 
+  String get balanceMos {
+    if (_currentLanguage == LanguageType.chinese) {
+      return '均衡MOS';
+    } else {
+      return 'Balance MOS';
+    }
+  }
+
   String get totalCapacity {
     if (_currentLanguage == LanguageType.chinese) {
       return '总容量';

@@ -42,6 +42,7 @@ class _SetPageState extends State<SetPage> {
   double _t2Temp = 0.0;
   bool _chargeMosOn = false;
   bool _dischargeMosOn = false;
+  bool _balanceMosOn = false;
   double _voltageDiff = 0.0;
 
   @override
@@ -64,6 +65,7 @@ class _SetPageState extends State<SetPage> {
           _t2Temp = data.batteryTemperature2;
           _chargeMosOn = data.chargeMosOn;
           _dischargeMosOn = data.dischargeMosOn;
+          _balanceMosOn = data.balanceMosOn;
           
           // 计算压差
           if (_cellVoltages.isNotEmpty && _cellVoltages.length >= 2) {
@@ -92,6 +94,7 @@ class _SetPageState extends State<SetPage> {
       _t2Temp = currentData.batteryTemperature2;
       _chargeMosOn = currentData.chargeMosOn;
       _dischargeMosOn = currentData.dischargeMosOn;
+      _balanceMosOn = currentData.balanceMosOn;
       
       // 计算压差
       if (_cellVoltages.isNotEmpty && _cellVoltages.length >= 2) {
@@ -363,6 +366,8 @@ class _SetPageState extends State<SetPage> {
                                   _buildStatusIndicator(languageManager.chargeMos, _chargeMosOn ? Colors.green : Colors.red),
                                   const SizedBox(width: 16),
                                   _buildStatusIndicator(languageManager.dischargeMos, _dischargeMosOn ? Colors.green : Colors.red),
+                                  const SizedBox(width: 16),
+                                  _buildStatusIndicator(languageManager.balanceMos, _balanceMosOn ? Colors.green : Colors.red),
                                 ],
                               ),
                             ],

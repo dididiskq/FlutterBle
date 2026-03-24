@@ -45,6 +45,7 @@ class BatteryData {
   final int functionSwitchConfig;
   final bool chargeMosOn;
   final bool dischargeMosOn;
+  final bool balanceMosOn;
   
   final String batterySN;
   final String manufacturer;
@@ -104,6 +105,7 @@ class BatteryData {
     this.functionSwitchConfig = 0,
     this.chargeMosOn = false,
     this.dischargeMosOn = false,
+    this.balanceMosOn = false,
     this.batterySN = '',
     this.manufacturer = '',
     this.manufacturerModel = '',
@@ -162,6 +164,7 @@ class BatteryData {
       functionSwitchConfig: 0,
       chargeMosOn: false,
       dischargeMosOn: false,
+      balanceMosOn: false,
       batterySN: '',
       manufacturer: '',
       manufacturerModel: '',
@@ -223,6 +226,7 @@ class BatteryData {
     int? functionSwitchConfig,
     bool? chargeMosOn,
     bool? dischargeMosOn,
+    bool? balanceMosOn,
     String? batterySN,
     String? manufacturer,
     String? manufacturerModel,
@@ -280,6 +284,7 @@ class BatteryData {
       functionSwitchConfig: functionSwitchConfig ?? this.functionSwitchConfig,
       chargeMosOn: chargeMosOn ?? this.chargeMosOn,
       dischargeMosOn: dischargeMosOn ?? this.dischargeMosOn,
+      balanceMosOn: balanceMosOn ?? this.balanceMosOn,
       batterySN: batterySN ?? this.batterySN,
       manufacturer: manufacturer ?? this.manufacturer,
       manufacturerModel: manufacturerModel ?? this.manufacturerModel,

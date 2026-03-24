@@ -2647,11 +2647,14 @@ class BatteryDataManager {
     print('[BatteryDataManager] 充放电状态解析: ${bytes.map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}').join(' ')}');
     final chargeStatus = bytes[1] & 0x01;
     final dischargeStatus = bytes[1] & 0x02;
+    final balanceStatus = bytes[1] & 0x80;
+
     _currentData = _currentData.copyWith(
       chargeStatus: chargeStatus,
       dischargeStatus: dischargeStatus,
       chargeMosOn: chargeStatus != 0,
       dischargeMosOn: dischargeStatus != 0,
+      balanceMosOn: balanceStatus != 0,
       timestamp: DateTime.now(),
     );
     _batteryDataController.add(_currentData);
@@ -2959,6 +2962,7 @@ class BatteryDataManager {
       afeStatus: afeStatus,
       alarmStatus: alarmStatus,
       batteryStatus: batteryStatus,
+      balanceMosOn: (afeStatus & (1 << 23)) != 0,
       secondaryVoltage: secondaryVoltage / 10.0, // 转换为V
       secondaryCurrent: signedSecondaryCurrent / 10.0, // 转换为A
       secondaryTemperature: secondaryTemperature,
