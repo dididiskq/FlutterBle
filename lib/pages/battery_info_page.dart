@@ -193,31 +193,32 @@ class _BatteryInfoPageState extends State<BatteryInfoPage> {
           child: Column(
             children: [
               if (_isLoading)
-                const Center(
-                  child: CircularProgressIndicator(),
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 16.0),
+                  child: Center(
+                    child: CircularProgressIndicator(),
+                  ),
                 ),
-              if (!_isLoading) ...[
-                _buildInfoRow('电池SN', _batterySN.isEmpty ? '-' : _batterySN),
-                _buildInfoRow('制造厂家', _manufacturer.isEmpty ? '-' : _manufacturer),
-                _buildInfoRow('制造厂家型号', _manufacturerModel.isEmpty ? '-' : _manufacturerModel),
-                _buildInfoRow('客户名称', _customerName.isEmpty ? '-' : _customerName),
-                _buildInfoRow('客户型号', _customerModel.isEmpty ? '-' : _customerModel),
-                _buildInfoRow('生产日期', _mfgDate.isEmpty ? '-' : _mfgDate),
-                _buildInfoRow('固件版本', _firmwareVersion.isEmpty ? '-' : _firmwareVersion),
-                _buildInfoRow('电池类型', _cellType.isEmpty ? '-' : _cellType),
-                _buildInfoRow('电池串数', _cellNumber.isEmpty ? '-' : _cellNumber),
-                _buildInfoRow('BMS时间', bmsTime),
-                _buildInfoRow('设计循环次数', _designCycleCount.isEmpty ? '-' : _designCycleCount),
-                _buildInfoRow('参考容值', _referenceCapacity.isEmpty ? '-' : _referenceCapacity),
-                _buildInfoRow('设计容量', _designCapacity.isEmpty ? '-' : _designCapacity),
-                _buildInfoRow('最大未充电时间间隔', _maxUnchargedInterval.isEmpty ? '-' : _maxUnchargedInterval),
-                _buildInfoRow('最近未充电间隔时间', _recentUnchargedInterval.isEmpty ? '-' : _recentUnchargedInterval),
-                _buildInfoRow('BT码', _btCode.isEmpty ? '-' : _btCode),
-                const SizedBox(height: 20.0),
-                
-                // 保护记录区域
-                _buildProtectionRecordsSection(),
-              ],
+              _buildInfoRow('电池SN', _batterySN.isEmpty ? '-' : _batterySN),
+              _buildInfoRow('制造厂家', _manufacturer.isEmpty ? '-' : _manufacturer),
+              _buildInfoRow('制造厂家型号', _manufacturerModel.isEmpty ? '-' : _manufacturerModel),
+              _buildInfoRow('客户名称', _customerName.isEmpty ? '-' : _customerName),
+              _buildInfoRow('客户型号', _customerModel.isEmpty ? '-' : _customerModel),
+              _buildInfoRow('生产日期', _mfgDate.isEmpty ? '-' : _mfgDate),
+              _buildInfoRow('固件版本', _firmwareVersion.isEmpty ? '-' : _firmwareVersion),
+              _buildInfoRow('电池类型', _cellType.isEmpty ? '-' : _cellType),
+              _buildInfoRow('电池串数', _cellNumber.isEmpty ? '-' : _cellNumber),
+              _buildInfoRow('BMS时间', bmsTime),
+              _buildInfoRow('设计循环次数', _designCycleCount.isEmpty ? '-' : _designCycleCount),
+              _buildInfoRow('参考容值', _referenceCapacity.isEmpty ? '-' : _referenceCapacity),
+              _buildInfoRow('设计容量', _designCapacity.isEmpty ? '-' : _designCapacity),
+              _buildInfoRow('最大未充电时间间隔', _maxUnchargedInterval.isEmpty ? '-' : _maxUnchargedInterval),
+              _buildInfoRow('最近未充电间隔时间', _recentUnchargedInterval.isEmpty ? '-' : _recentUnchargedInterval),
+              _buildInfoRow('BT码', _btCode.isEmpty ? '-' : _btCode),
+              const SizedBox(height: 20.0),
+              
+              // 保护记录区域
+              _buildProtectionRecordsSection(),
               
               const SizedBox(height: 20.0),
             ],
